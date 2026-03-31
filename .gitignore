@@ -40,6 +40,13 @@ npm-debug.log*
 coverage/
 .pytest_cache/
 
+# Pipeline data (regenerable)
+data/
+!data/final/.gitkeep
+!data/proessed/.gitkeep
+!data/raw/.gitkeep
+!data/reference/.gitkeep
+
 # Misc
 *.bak
 *.tmp

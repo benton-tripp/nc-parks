@@ -121,7 +121,7 @@ A filterable, map-first experience with verified community data. Every park has 
 | **Overpass API** | Query OpenStreetMap for `leisure=playground`, `leisure=park` in NC |
 | **Open data portals** | City/county/state GIS datasets (Raleigh, Charlotte, NC OneMap, etc.) |
 | **Beautiful Soup / Scrapy** | Web scraping for supplemental sources (parks & rec department sites) |
-| **GeoPandas** | Spatial operations — deduplication by proximity, boundary clipping |
+| **Shapely** | Spatial operations — point-in-polygon county assignment, deduplication by proximity |
 | **GitHub Actions** | Scheduled pipeline runs (weekly/monthly refresh) |
 
 ### Infrastructure as Code
@@ -194,10 +194,10 @@ The architecture is designed around **pay-per-use** services with generous free 
    - Municipal boundaries for county/city tagging
 
 3. **City/County Open Data Portals**
-   - Raleigh Open Data — parks, playgrounds, amenities
-   - Charlotte Open Data — park facilities
-   - Durham, Greensboro, Winston-Salem, Fayetteville, etc.
-   - Wake County, Mecklenburg County GIS
+   - **Wake County ArcGIS** — 291 parks with 42 amenity flags ✅ *implemented*
+   - Charlotte Open Data — park facilities *(stub)*
+   - Durham, Greensboro, Winston-Salem, Fayetteville, etc. *(planned)*
+   - Mecklenburg County GIS *(planned)*
 
 4. **Web Scraping (supplemental)**
    - Municipal parks & recreation department websites
@@ -352,18 +352,25 @@ nc-parks/
 │   ├── requirements.txt
 │   └── template.yaml            # AWS SAM template
 │
+├── data/                        # Pipeline output (gitignored)
+│   ├── raw/                     # Cached API responses per source
+│   ├── processed/               # After normalize + enrich
+│   ├── final/                   # Deduplicated output (parks_latest.json)
+│   └── reference/               # County boundaries GeoJSON
+│
 ├── data-pipeline/               # ETL scripts
 │   ├── sources/
-│   │   ├── osm.py               # Overpass API queries
-│   │   ├── raleigh.py           # Raleigh open data
-│   │   ├── charlotte.py         # Charlotte open data
-│   │   ├── nc_onemap.py         # State GIS layers
-│   │   └── scraper.py           # Generic parks & rec scraper
+│   │   ├── wake_county.py       # Wake County ArcGIS open data
+│   │   ├── county_boundaries.py # NC county boundary polygons
+│   │   ├── osm.py               # Overpass API queries (stub)
+│   │   ├── charlotte.py         # Charlotte open data (stub)
+│   │   ├── nc_onemap.py         # State GIS layers (stub)
+│   │   └── scraper.py           # Generic parks & rec scraper (stub)
 │   ├── processing/
 │   │   ├── normalize.py         # Standardize schemas
 │   │   ├── deduplicate.py       # Spatial + fuzzy dedup
 │   │   ├── geocode.py           # Reverse geocode for missing addresses
-│   │   └── enrich.py            # Add county/city from boundaries
+│   │   └── enrich.py            # Point-in-polygon county assignment + geohash
 │   ├── load.py                  # Write to DynamoDB
 │   ├── pipeline.py              # Orchestrator
 │   ├── requirements.txt
@@ -424,9 +431,31 @@ sam local start-api
 ```bash
 cd data-pipeline
 pip install -r requirements.txt
-python pipeline.py --source osm --dry-run
-python pipeline.py --source all
+
+# Run from project root:
+python data-pipeline/pipeline.py                          # all registered sources
+python data-pipeline/pipeline.py -s wake_county            # single source
+python data-pipeline/pipeline.py --refresh-boundaries      # re-fetch county polygons
+python data-pipeline/pipeline.py --dry-run                 # process without saving
+python data-pipeline/pipeline.py -v                        # verbose/debug logging
 ```
+
+Output lands in `data/` (gitignored):
+- `data/raw/` — timestamped snapshots of each source
+- `data/processed/` — post-normalize, post-enrich
+- `data/final/parks_latest.json` — deduplicated, ready for frontend or DynamoDB load
+- `data/reference/nc_counties.geojson` — 100 county boundary polygons
+
+### Test Map
+
+After running the pipeline, verify the data visually:
+
+```bash
+python -m http.server 8080
+# Open http://localhost:8080/test-map.html
+```
+
+This loads `parks_latest.json` as clustered markers and `nc_counties.geojson` as boundary outlines on a MapLibre GL JS map — the same rendering approach the production frontend will use.
 
 ---
 

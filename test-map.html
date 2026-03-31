@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NC Parks — Test Map</title>
+
+  <!-- MapLibre GL JS -->
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <link  href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; }
+    #map { position: absolute; inset: 0; }
+
+    /* Info panel */
+    #info {
+      position: absolute; top: 12px; left: 12px; z-index: 1;
+      background: #fff; border-radius: 8px; padding: 12px 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.15); max-width: 320px;
+      font-size: 13px; line-height: 1.5;
+    }
+    #info h2 { font-size: 15px; margin-bottom: 4px; }
+    #info .count { color: #16a34a; font-weight: 600; }
+
+    /* Legend */
+    #legend {
+      position: absolute; bottom: 28px; left: 12px; z-index: 1;
+      background: #fff; border-radius: 8px; padding: 10px 14px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.15); font-size: 12px;
+    }
+    #legend .row { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
+    #legend .dot {
+      width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;
+    }
+
+    /* Popup */
+    .maplibregl-popup-content {
+      padding: 12px 16px !important; border-radius: 8px !important;
+      max-width: 280px; font-size: 13px; line-height: 1.5;
+    }
+    .popup-name { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+    .popup-address { color: #666; margin-bottom: 6px; }
+    .popup-amenities { display: flex; flex-wrap: wrap; gap: 4px; }
+    .popup-amenities .tag {
+      background: #dcfce7; color: #166534; border-radius: 4px;
+      padding: 1px 6px; font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <div id="info">
+    <h2>NC Parks — Test Map</h2>
+    <div>Loading data…</div>
+  </div>
+
+  <div id="legend">
+    <div class="row"><div class="dot" style="background:#16a34a"></div> Park (with playground)</div>
+    <div class="row"><div class="dot" style="background:#3b82f6"></div> Park (no playground data)</div>
+    <div class="row"><div class="dot" style="background:#f59e0b; width:18px; height:18px; font-size:9px; text-align:center; line-height:18px; color:#fff; font-weight:700;">5</div> Cluster</div>
+    <div class="row"><div class="dot" style="background:none; border:2px solid #6366f1; width:12px; height:12px;"></div> County boundary</div>
+  </div>
+
+  <script>
+    // --------------- Map setup ---------------
+    const map = new maplibregl.Map({
+      container: 'map',
+      // OpenFreeMap — free OSM vector tiles, no API key
+      style: 'https://tiles.openfreemap.org/styles/liberty',
+      center: [-79.4, 35.55],  // Center of NC
+      zoom: 7,
+      attributionControl: true,
+    });
+
+    map.addControl(new maplibregl.NavigationControl(), 'top-right');
+    map.addControl(new maplibregl.GeolocateControl({
+      positionOptions: { enableHighAccuracy: true },
+      trackUserLocation: false,
+    }), 'top-right');
+
+    // --------------- Load data after map ready ---------------
+    map.on('load', async () => {
+      // Fetch both datasets in parallel
+      const [parksResp, countiesResp] = await Promise.all([
+        fetch('data/final/parks_latest.json'),
+        fetch('data/reference/nc_counties.geojson'),
+      ]);
+
+      if (!parksResp.ok) {
+        document.querySelector('#info div').textContent =
+          'Error: run the pipeline first (python data-pipeline/pipeline.py)';
+        return;
+      }
+
+      const parksRaw = await parksResp.json();
+      const countiesGeoJSON = countiesResp.ok ? await countiesResp.json() : null;
+
+      // ---------- Convert parks array → GeoJSON ----------
+      const parksGeoJSON = {
+        type: 'FeatureCollection',
+        features: parksRaw.map(p => ({
+          type: 'Feature',
+          geometry: {
+            type: 'Point',
+            coordinates: [p.longitude, p.latitude],
+          },
+          properties: {
+            name: p.name,
+            source: p.source,
+            county: p.county || 'Unknown',
+            address: p.address || '',
+            url: p.url || '',
+            has_playground: p.amenities?.playground === true,
+            has_restrooms: p.amenities?.restrooms === true,
+            // Flatten amenities for popup
+            amenities_list: Object.entries(p.amenities || {})
+              .filter(([, v]) => v === true)
+              .map(([k]) => k.replace(/_/g, ' '))
+              .join(', '),
+            amenity_tags: Object.entries(p.amenities || {})
+              .filter(([, v]) => v === true)
+              .map(([k]) => k.replace(/_/g, ' ')),
+          },
+        })),
+      };
+
+      // ---------- County boundaries ----------
+      if (countiesGeoJSON) {
+        map.addSource('counties', {
+          type: 'geojson',
+          data: countiesGeoJSON,
+        });
+
+        // Fill (very subtle)
+        map.addLayer({
+          id: 'county-fill',
+          type: 'fill',
+          source: 'counties',
+          paint: {
+            'fill-color': '#6366f1',
+            'fill-opacity': 0.03,
+          },
+        });
+
+        // Outline
+        map.addLayer({
+          id: 'county-borders',
+          type: 'line',
+          source: 'counties',
+          paint: {
+            'line-color': '#6366f1',
+            'line-width': 1.2,
+            'line-opacity': 0.5,
+          },
+        });
+
+        // County name labels
+        map.addLayer({
+          id: 'county-labels',
+          type: 'symbol',
+          source: 'counties',
+          layout: {
+            'text-field': ['get', 'county'],
+            'text-size': 11,
+            'text-transform': 'uppercase',
+            'text-letter-spacing': 0.05,
+          },
+          paint: {
+            'text-color': '#6366f1',
+            'text-opacity': 0.4,
+            'text-halo-color': '#fff',
+            'text-halo-width': 1.5,
+          },
+          minzoom: 8,
+        });
+      }
+
+      // ---------- Parks (clustered) ----------
+      map.addSource('parks', {
+        type: 'geojson',
+        data: parksGeoJSON,
+        cluster: true,
+        clusterMaxZoom: 13,
+        clusterRadius: 50,
+      });
+
+      // Cluster circles
+      map.addLayer({
+        id: 'clusters',
+        type: 'circle',
+        source: 'parks',
+        filter: ['has', 'point_count'],
+        paint: {
+          'circle-color': [
+            'step', ['get', 'point_count'],
+            '#f59e0b', 10,   // < 10: amber
+            '#f97316', 30,   // 10-30: orange
+            '#ef4444',       // 30+: red
+          ],
+          'circle-radius': [
+            'step', ['get', 'point_count'],
+            16, 10,
+            22, 30,
+            28,
+          ],
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#fff',
+        },
+      });
+
+      // Cluster count labels
+      map.addLayer({
+        id: 'cluster-count',
+        type: 'symbol',
+        source: 'parks',
+        filter: ['has', 'point_count'],
+        layout: {
+          'text-field': '{point_count_abbreviated}',
+          'text-size': 12,
+          'text-font': ['Noto Sans Bold'],
+        },
+        paint: {
+          'text-color': '#fff',
+        },
+      });
+
+      // Individual park markers
+      map.addLayer({
+        id: 'park-points',
+        type: 'circle',
+        source: 'parks',
+        filter: ['!', ['has', 'point_count']],
+        paint: {
+          'circle-color': [
+            'case',
+            ['get', 'has_playground'], '#16a34a',
+            '#3b82f6',
+          ],
+          'circle-radius': 7,
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#fff',
+        },
+      });
+
+      // ---------- Interactions ----------
+
+      // Click cluster → zoom in
+      map.on('click', 'clusters', async (e) => {
+        const features = map.queryRenderedFeatures(e.point, { layers: ['clusters'] });
+        const clusterId = features[0].properties.cluster_id;
+        const zoom = await map.getSource('parks').getClusterExpansionZoom(clusterId);
+        map.easeTo({ center: features[0].geometry.coordinates, zoom });
+      });
+
+      // Click park → popup
+      map.on('click', 'park-points', (e) => {
+        const f = e.features[0];
+        const p = f.properties;
+        const coords = f.geometry.coordinates.slice();
+
+        // Parse amenity_tags (comes as JSON string from GeoJSON)
+        let tags = [];
+        try { tags = JSON.parse(p.amenity_tags); } catch { tags = []; }
+
+        const tagsHTML = tags.slice(0, 8)
+          .map(t => `<span class="tag">${t}</span>`)
+          .join('') + (tags.length > 8 ? `<span class="tag">+${tags.length - 8} more</span>` : '');
+
+        const html = `
+          <div class="popup-name">${p.name}</div>
+          ${p.address ? `<div class="popup-address">${p.address}</div>` : ''}
+          <div style="color:#888;font-size:11px;margin-bottom:4px;">${p.county} County · via ${p.source}</div>
+          ${tagsHTML ? `<div class="popup-amenities">${tagsHTML}</div>` : ''}
+          ${p.url ? `<div style="margin-top:6px;"><a href="${p.url}" target="_blank" rel="noopener" style="color:#2563eb;">More info →</a></div>` : ''}
+        `;
+
+        new maplibregl.Popup({ offset: 12 })
+          .setLngLat(coords)
+          .setHTML(html)
+          .addTo(map);
+      });
+
+      // Cursor changes
+      for (const layer of ['clusters', 'park-points']) {
+        map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
+        map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
+      }
+
+      // ---------- Update info panel ----------
+      const playgrounds = parksRaw.filter(p => p.amenities?.playground).length;
+      const counties = new Set(parksRaw.map(p => p.county).filter(Boolean)).size;
+      document.querySelector('#info').innerHTML = `
+        <h2>NC Parks — Test Map</h2>
+        <div><span class="count">${parksRaw.length}</span> parks loaded</div>
+        <div>${playgrounds} with playgrounds · ${counties} counties</div>
+        <div style="color:#888;font-size:11px;margin-top:4px;">
+          Source: Wake County ArcGIS
+          ${countiesGeoJSON ? ' · County boundaries loaded' : ''}
+        </div>
+      `;
+    });
+  </script>
+</body>
+</html>

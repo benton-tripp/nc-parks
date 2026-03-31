@@ -12,7 +12,7 @@ python -m pip install --upgrade pip
 pip install wheel setuptools
 
 REM Install the required packages
-pip install requests beautifulsoup4
+pip install requests beautifulsoup4 shapely
 pip freeze > requirements.txt
 
 echo "Virtual environment setup is complete."
