@@ -43,6 +43,7 @@ _OK_STATUSES = range(200, 400)
 _TRUSTED_DOMAINS = {
     "johnstonnc.gov",
     "garnernc.gov",
+    "alamancecountync.gov",
 }
 
 # Set of override URLs — these are trusted (manually verified) and

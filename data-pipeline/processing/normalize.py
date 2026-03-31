@@ -89,8 +89,13 @@ def normalize(parks: list[dict], source_name: str) -> list[dict]:
         park.setdefault("state", "NC")
         park.setdefault("extras", {})
 
-        if not park.get("name") or park.get("latitude") is None:
-            logger.warning("Dropping park with missing name/coords: %s", park)
+        if not park.get("name"):
+            logger.warning("Dropping park with missing name: %s", park)
+            continue
+
+        # Parks need either coordinates or an address (geocoder can resolve later)
+        if park.get("latitude") is None and not park.get("address"):
+            logger.warning("Dropping park with no coords and no address: %s", park)
             continue
 
         normalized.append(park)
@@ -187,11 +192,34 @@ def _johnston_county(raw: dict) -> dict | None:
     }
 
 
+def _alamance_county(raw: dict) -> dict | None:
+    """Alamance County scraper data — already close to canonical."""
+    return {
+        "source": "alamance_county",
+        "source_id": raw.get("source_id", ""),
+        "name": raw.get("name"),
+        "latitude": raw.get("latitude"),
+        "longitude": raw.get("longitude"),
+        "address": raw.get("address"),
+        "city": raw.get("city"),
+        "county": raw.get("county", "Alamance"),
+        "state": "NC",
+        "phone": raw.get("phone"),
+        "url": raw.get("url"),
+        "amenities": raw.get("amenities", {}),
+        "extras": {
+            "description": raw.get("description"),
+            "hours": raw.get("hours"),
+        },
+    }
+
+
 # Register handlers per source name
 _SOURCE_HANDLERS = {
     "wake_county": _wake_county,
     "osm": _osm,
     "johnston_county": _johnston_county,
+    "alamance_county": _alamance_county,
     # "charlotte": _charlotte,
     # "nc_onemap": _nc_onemap,
 }

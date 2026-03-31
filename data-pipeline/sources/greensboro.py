@@ -1,0 +1,2 @@
+# From: https://www.greensboro-nc.gov/departments/parks-recreation/parks-gardens/neighborhood-parks
+# Can parse pages (E.g., https://www.greensboro-nc.gov/departments/parks-recreation/parks-gardens/neighborhood-parks/-npage-2/-point-_36@053537880566054_-79@7284253857422_10)

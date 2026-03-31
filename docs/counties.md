@@ -1,14 +1,13 @@
 # Counties of NC
 
-"✓" when direct data source used in pipeline:
+"✓" when direct data source used in pipeline, "X" when not doable.
 
-- Alamance County
-    * https://parks.alamancecountync.gov/ Look at `.uk-panel uk-margin` class, with `<strong>` "Parks & Trails" (list items under that with links)
-- Alleghany County
+- ✓ Alamance County
+- X Alleghany County
 - Anson County
 - Ashe County
 - Avery County
-- Beaufort County
+- X Beaufort County
 - Bertie County
 - Bladen County
 - Brunswick County

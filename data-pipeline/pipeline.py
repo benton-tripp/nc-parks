@@ -3,8 +3,8 @@
 Coordinates the full ETL flow:
   1. Fetch     — pull raw data from each source
   2. Normalize — map into canonical park schema
-  3. Enrich    — add county via point-in-polygon, add geohash
-  4. Geocode   — reverse geocode parks missing addresses (Nominatim)
+  3. Geocode   — forward (address→coords) + reverse (coords→address)
+  4. Enrich    — add county via point-in-polygon, add geohash
   5. Validate  — check/fix park URLs, apply overrides
   6. Deduplicate — merge near-identical parks across sources
   7. Save      — write JSON artifacts to data/
@@ -48,6 +48,7 @@ SOURCES = {
     "wake_county":      "sources.wake_county",
     "johnston_county":  "sources.johnston_county",
     "osm":              "sources.osm",
+    "alamance_county":  "sources.alamance_county",
     # "charlotte":    "sources.charlotte",
     # "nc_onemap":    "sources.nc_onemap",
 }
@@ -119,12 +120,12 @@ def step_enrich(parks: list[dict]) -> list[dict]:
 
 
 def step_geocode(parks: list[dict], batch_size: int = 0) -> list[dict]:
-    """Reverse geocode parks with no address. batch_size=-1 skips entirely."""
+    """Forward + reverse geocode. batch_size=-1 skips entirely."""
     if batch_size < 0:
         logger.info("Skipping geocode step")
         return parks
-    from processing.geocode import reverse_geocode
-    return reverse_geocode(parks, batch_size=batch_size)
+    from processing.geocode import geocode
+    return geocode(parks, batch_size=batch_size)
 
 
 def step_validate_urls(parks: list[dict]) -> list[dict]:
@@ -190,11 +191,11 @@ def run(source_names: list[str] | None = None,
     # 2. Normalize
     all_parks = step_normalize(raw_by_source)
 
-    # 3. Enrich
-    all_parks = step_enrich(all_parks)
-
-    # 4. Geocode missing addresses
+    # 3. Geocode (forward: address→coords, reverse: coords→address)
     all_parks = step_geocode(all_parks, batch_size=geocode_batch)
+
+    # 4. Enrich (all parks now have coordinates)
+    all_parks = step_enrich(all_parks)
 
     # 5. Validate URLs
     all_parks = step_validate_urls(all_parks)
