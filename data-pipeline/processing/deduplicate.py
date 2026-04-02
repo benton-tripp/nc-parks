@@ -130,10 +130,14 @@ def _absorb_dog_parks(parks: list[dict]) -> list[dict]:
     absorbed: set[int] = set()
 
     for di, dp in dog_parks:
+        if dp.get("latitude") is None or dp.get("longitude") is None:
+            continue
         best_dist = DOG_PARK_ABSORPTION_RADIUS_M + 1
         best_parent_idx = None
 
         for ni, np_ in non_dogs:
+            if np_.get("latitude") is None or np_.get("longitude") is None:
+                continue
             dist = _haversine_m(
                 dp["latitude"], dp["longitude"],
                 np_["latitude"], np_["longitude"],
@@ -159,6 +163,11 @@ def _absorb_dog_parks(parks: list[dict]) -> list[dict]:
 
 def _is_duplicate(park_a: dict, park_b: dict) -> bool:
     """Check if two parks are duplicates using tiered distance/name thresholds."""
+    # Can't compare distance without coordinates
+    if (park_a.get("latitude") is None or park_a.get("longitude") is None or
+            park_b.get("latitude") is None or park_b.get("longitude") is None):
+        return False
+
     dist = _haversine_m(
         park_a["latitude"], park_a["longitude"],
         park_b["latitude"], park_b["longitude"],

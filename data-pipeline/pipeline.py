@@ -49,6 +49,12 @@ SOURCES = {
     "johnston_county":  "sources.johnston_county",
     "osm":              "sources.osm",
     "alamance_county":  "sources.alamance_county",
+    "greensboro":       "sources.greensboro",
+    "high_point":       "sources.high_point",
+    "playground_explorers": "sources.playground_explorers",
+    "southern_pines":   "sources.southern_pines",
+    "nash_county":      "sources.nash_county",
+    "kill_devil_hills": "sources.kill_devil_hills",
     # "charlotte":    "sources.charlotte",
     # "nc_onemap":    "sources.nc_onemap",
 }
@@ -94,6 +100,27 @@ def step_fetch(source_names: list[str]) -> dict[str, list[dict]]:
             logger.info("  → %d raw records", len(parks))
         except Exception:
             logger.error("Failed to fetch %s", name, exc_info=True)
+
+    return raw_by_source
+
+
+def step_load_raw(source_names: list[str]) -> dict[str, list[dict]]:
+    """Load the most recent raw JSON files instead of fetching."""
+    import glob
+    raw_by_source = {}
+
+    for name in source_names:
+        pattern = str(_RAW / f"{name}_*.json")
+        files = sorted(glob.glob(pattern))
+        if not files:
+            logger.warning("No raw file found for %s — skipping", name)
+            continue
+        latest = files[-1]
+        with open(latest) as f:
+            parks = json.load(f)
+        raw_by_source[name] = parks
+        logger.info("Loaded %d raw records from %s", len(parks),
+                    Path(latest).name)
 
     return raw_by_source
 
@@ -156,7 +183,8 @@ def step_refresh_boundaries():
 def run(source_names: list[str] | None = None,
         dry_run: bool = False,
         refresh_boundaries: bool = False,
-        geocode_batch: int = 0):
+        geocode_batch: int = 0,
+        skip_fetch: bool = False):
     """Run the full pipeline.
 
     Parameters
@@ -167,6 +195,8 @@ def run(source_names: list[str] | None = None,
         If True, fetch and normalize but don't write final output.
     refresh_boundaries:
         If True, re-download county boundaries before enrichment.
+    skip_fetch:
+        If True, load from the latest raw files instead of re-fetching.
     """
     _ensure_dirs()
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
@@ -179,7 +209,10 @@ def run(source_names: list[str] | None = None,
         step_refresh_boundaries()
 
     # 1. Fetch
-    raw_by_source = step_fetch(source_names)
+    if skip_fetch:
+        raw_by_source = step_load_raw(source_names)
+    else:
+        raw_by_source = step_fetch(source_names)
     if not raw_by_source:
         logger.error("No data fetched — aborting")
         return
@@ -252,6 +285,8 @@ def main():
                         help="Max geocode API calls (0=unlimited). ~1 req/sec.")
     parser.add_argument("--skip-geocode", action="store_true",
                         help="Skip reverse geocoding step entirely.")
+    parser.add_argument("--skip-fetch", action="store_true",
+                        help="Load from latest raw files instead of re-fetching.")
     parser.add_argument("--verbose", "-v", action="store_true",
                         help="Enable debug logging.")
     args = parser.parse_args()
@@ -264,7 +299,8 @@ def main():
     run(source_names=args.sources,
         dry_run=args.dry_run,
         refresh_boundaries=args.refresh_boundaries,
-        geocode_batch=geocode_batch)
+        geocode_batch=geocode_batch,
+        skip_fetch=args.skip_fetch)
 
 
 if __name__ == "__main__":

@@ -214,12 +214,75 @@ def _alamance_county(raw: dict) -> dict | None:
     }
 
 
+def _greensboro(raw: dict) -> dict | None:
+    """Greensboro scraper data — already close to canonical."""
+    return {
+        "source": "greensboro",
+        "source_id": raw.get("source_id", ""),
+        "name": raw.get("name"),
+        "latitude": raw.get("latitude"),
+        "longitude": raw.get("longitude"),
+        "address": raw.get("address"),
+        "city": raw.get("city", "Greensboro"),
+        "county": raw.get("county", "Guilford"),
+        "state": "NC",
+        "phone": raw.get("phone"),
+        "url": raw.get("url"),
+        "amenities": raw.get("amenities", {}),
+        "extras": raw.get("extras", {}),
+    }
+
+
+def _high_point(raw: dict) -> dict | None:
+    """High Point scraper data — already close to canonical."""
+    return {
+        "source": "high_point",
+        "source_id": raw.get("source_id", ""),
+        "name": raw.get("name"),
+        "latitude": raw.get("latitude"),
+        "longitude": raw.get("longitude"),
+        "address": raw.get("address"),
+        "city": raw.get("city", "High Point"),
+        "county": raw.get("county", "Guilford"),
+        "state": "NC",
+        "phone": raw.get("phone"),
+        "url": raw.get("url"),
+        "amenities": raw.get("amenities", {}),
+        "extras": raw.get("extras", {}),
+    }
+
+
+def _playground_explorers(raw: dict) -> dict:
+    """Playground Explorers — already outputs canonical schema."""
+    return {
+        "source": "playground_explorers",
+        "source_id": raw.get("source_id", ""),
+        "name": raw.get("name"),
+        "latitude": raw.get("latitude"),
+        "longitude": raw.get("longitude"),
+        "address": raw.get("address"),
+        "city": raw.get("city"),
+        "county": raw.get("county"),
+        "state": "NC",
+        "phone": raw.get("phone"),
+        "url": raw.get("url"),
+        "amenities": raw.get("amenities", {}),
+        "extras": raw.get("extras", {}),
+    }
+
+
 # Register handlers per source name
 _SOURCE_HANDLERS = {
     "wake_county": _wake_county,
     "osm": _osm,
     "johnston_county": _johnston_county,
     "alamance_county": _alamance_county,
+    "greensboro": _greensboro,
+    "high_point": _high_point,
+    "playground_explorers": _playground_explorers,
+    "southern_pines": _generic,
+    "nash_county": _generic,
+    "kill_devil_hills": _generic,
     # "charlotte": _charlotte,
     # "nc_onemap": _nc_onemap,
 }

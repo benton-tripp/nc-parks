@@ -44,6 +44,12 @@ _TRUSTED_DOMAINS = {
     "johnstonnc.gov",
     "garnernc.gov",
     "alamancecountync.gov",
+    "greensboro-nc.gov",
+    "highpointnc.gov",
+    "playgroundexplorers.com",
+    "southernpines.net",
+    "nashcountync.gov",
+    "kdhnc.com",
 }
 
 # Set of override URLs — these are trusted (manually verified) and

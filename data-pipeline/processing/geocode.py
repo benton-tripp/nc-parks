@@ -24,6 +24,7 @@ import requests
 logger = logging.getLogger(__name__)
 
 _CACHE_PATH = Path(__file__).resolve().parents[2] / "data" / "reference" / "geocode_cache.json"
+_BACKOFF_PATH = Path(__file__).resolve().parents[2] / "data" / "reference" / "nominatim_backoff.json"
 
 _NOMINATIM_BASE = "https://nominatim.openstreetmap.org"
 
@@ -34,6 +35,10 @@ _HEADERS = {
 
 # Nominatim usage policy: max 1 request per second
 _REQUEST_DELAY = 1.05  # seconds, slightly over 1s to stay safe
+
+# Backoff escalation: after a 429, increase delay to this minimum
+_BACKOFF_DELAY = 3.0   # seconds between requests when backing off
+_BACKOFF_COOLDOWN = 300  # seconds to wait after last 429 before treating as recovered
 
 
 # ── Cache ─────────────────────────────────────────────────────────────────
@@ -78,9 +83,60 @@ def _forward_cache_key(address: str) -> str:
     return address.strip().lower()
 
 
+# ── Backoff state ────────────────────────────────────────────────────────
+
+def _load_backoff() -> dict:
+    """Load persistent backoff state.
+
+    Structure:
+        {"last_429_ts": float | None, "consecutive_429s": int}
+    """
+    if _BACKOFF_PATH.exists():
+        with open(_BACKOFF_PATH) as f:
+            return json.load(f)
+    return {"last_429_ts": None, "consecutive_429s": 0}
+
+
+def _save_backoff(state: dict):
+    """Persist backoff state."""
+    _BACKOFF_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(_BACKOFF_PATH, "w") as f:
+        json.dump(state, f, indent=2)
+
+
+def _record_429(state: dict):
+    """Record a 429 response and persist."""
+    state["last_429_ts"] = time.time()
+    state["consecutive_429s"] = state.get("consecutive_429s", 0) + 1
+    _save_backoff(state)
+    logger.warning("Nominatim 429 recorded (consecutive: %d)", state["consecutive_429s"])
+
+
+def _effective_delay(state: dict) -> float:
+    """Return the request delay to use based on backoff state."""
+    last_ts = state.get("last_429_ts")
+    if last_ts is None:
+        return _REQUEST_DELAY
+
+    elapsed = time.time() - last_ts
+    if elapsed > _BACKOFF_COOLDOWN:
+        # Enough time has passed — reset to normal
+        state["consecutive_429s"] = 0
+        state["last_429_ts"] = None
+        _save_backoff(state)
+        logger.info("Nominatim backoff cooldown expired — resuming normal rate")
+        return _REQUEST_DELAY
+
+    # Still in backoff: scale delay by consecutive 429 count (up to 10s)
+    n = min(state.get("consecutive_429s", 1), 5)
+    delay = _BACKOFF_DELAY * n
+    return min(delay, 10.0)
+
+
 # ── Nominatim API calls ──────────────────────────────────────────────────
 
-def _call_reverse(lat: float, lon: float, session: requests.Session) -> str | None:
+def _call_reverse(lat: float, lon: float, session: requests.Session,
+                  backoff_state: dict | None = None) -> str | None:
     """Call Nominatim reverse geocode for a single point.
 
     Returns a formatted address string, or None on failure.
@@ -91,7 +147,7 @@ def _call_reverse(lat: float, lon: float, session: requests.Session) -> str | No
         "format": "jsonv2",
         "zoom": 18,
         "addressdetails": 1,
-    })
+    }, backoff_state=backoff_state)
 
     if not data or "error" in data:
         return None
@@ -141,13 +197,15 @@ def _parse_address_parts(address: str) -> dict:
 
 
 def _nominatim_request(session: requests.Session, endpoint: str,
-                       params: dict) -> list | dict | None:
-    """Make a Nominatim request with retry on 429."""
+                       params: dict, backoff_state: dict | None = None) -> list | dict | None:
+    """Make a Nominatim request with retry on 429 and persistent backoff."""
     for attempt in range(3):
         try:
             resp = session.get(f"{_NOMINATIM_BASE}/{endpoint}",
                                params=params, headers=_HEADERS, timeout=10)
             if resp.status_code == 429:
+                if backoff_state is not None:
+                    _record_429(backoff_state)
                 wait = 30 * (attempt + 1)
                 logger.warning("Nominatim 429 — waiting %ds before retry", wait)
                 time.sleep(wait)
@@ -180,7 +238,8 @@ def _extract_coords(results: list) -> dict | None:
     return {"lat": lat, "lon": lon}
 
 
-def _call_forward(address: str, session: requests.Session) -> dict | None:
+def _call_forward(address: str, session: requests.Session,
+                  backoff_state: dict | None = None) -> dict | None:
     """Call Nominatim forward geocode (address → coordinates).
 
     Tries free-text search first, then falls back to structured search
@@ -194,7 +253,7 @@ def _call_forward(address: str, session: requests.Session) -> dict | None:
         "format": "jsonv2",
         "countrycodes": "us",
         "limit": 1,
-    })
+    }, backoff_state=backoff_state)
     coords = _extract_coords(results) if results else None
     if coords:
         return coords
@@ -208,7 +267,7 @@ def _call_forward(address: str, session: requests.Session) -> dict | None:
             "country": "us",
             "format": "jsonv2",
             "limit": 1,
-        })
+        }, backoff_state=backoff_state)
         coords = _extract_coords(results) if results else None
         if coords:
             logger.debug("Structured search resolved %r", address)
@@ -226,7 +285,7 @@ def _call_forward(address: str, session: requests.Session) -> dict | None:
             "format": "jsonv2",
             "countrycodes": "us",
             "limit": 1,
-        })
+        }, backoff_state=backoff_state)
         coords = _extract_coords(results) if results else None
         if coords:
             logger.debug("Name-based search resolved %r", address)
@@ -234,7 +293,7 @@ def _call_forward(address: str, session: requests.Session) -> dict | None:
 
     logger.debug("Forward geocode failed for %r (all strategies)", address)
 
-    return {"lat": lat, "lon": lon}
+    return None
 
 
 # ── Public API ────────────────────────────────────────────────────────────
@@ -266,6 +325,12 @@ def geocode(parks: list[dict], batch_size: int = 0) -> list[dict]:
     """
     cache = _load_cache()
     session = requests.Session()
+    backoff_state = _load_backoff()
+
+    delay = _effective_delay(backoff_state)
+    if delay > _REQUEST_DELAY:
+        logger.warning("Nominatim backoff active — using %.1fs delay between requests "
+                       "(consecutive 429s: %d)", delay, backoff_state.get("consecutive_429s", 0))
 
     # ── Pass 1: Forward geocode (address → coords) ───────────────────
     need_coords = [p for p in parks
@@ -297,8 +362,8 @@ def geocode(parks: list[dict], batch_size: int = 0) -> list[dict]:
             fwd_cache_hits += 1
             continue
 
-        time.sleep(_REQUEST_DELAY)
-        result = _call_forward(query, session)
+        time.sleep(delay)
+        result = _call_forward(query, session, backoff_state=backoff_state)
         fwd_api_calls += 1
 
         cache["forward"][key] = result or ""
@@ -349,8 +414,8 @@ def geocode(parks: list[dict], batch_size: int = 0) -> list[dict]:
             rev_cache_hits += 1
             continue
 
-        time.sleep(_REQUEST_DELAY)
-        address = _call_reverse(lat, lon, session)
+        time.sleep(delay)
+        address = _call_reverse(lat, lon, session, backoff_state=backoff_state)
         rev_api_calls += 1
 
         cache["reverse"][key] = address or ""

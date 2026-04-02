@@ -275,6 +275,16 @@
           <div style="color:#888;font-size:11px;margin-bottom:4px;">${p.county} County · via ${p.source}</div>
           ${tagsHTML ? `<div class="popup-amenities">${tagsHTML}</div>` : ''}
           ${p.url ? `<div style="margin-top:6px;"><a href="${p.url}" target="_blank" rel="noopener" style="color:#2563eb;">More info →</a></div>` : ''}
+          <div style="margin-top:6px;display:flex;gap:10px;align-items:center;">
+            <a href="https://www.google.com/maps/search/?api=1&query=${coords[1]},${coords[0]}" target="_blank" rel="noopener" title="Open in Google Maps" style="display:inline-flex;align-items:center;gap:3px;color:#4285F4;text-decoration:none;font-size:12px;">
+              <svg width="16" height="16" viewBox="0 0 92.3 132.3" xmlns="http://www.w3.org/2000/svg"><path fill="#1a73e8" d="M60.2 2.2C55.8.8 51 0 46.1 0 32 0 19.3 6.4 10.8 16.5l21.8 18.3L60.2 2.2z"/><path fill="#ea4335" d="M10.8 16.5C4.1 24.5 0 34.9 0 46.1c0 8.7 1.7 15.7 4.6 22l28-33.3-21.8-18.3z"/><path fill="#4285f4" d="M46.2 28.5c9.8 0 17.7 7.9 17.7 17.7 0 4.3-1.6 8.3-4.2 11.4 0 0 13.9-16.6 27.5-32.7-5.6-10.8-15.3-19-27-22.7L32.6 34.8c3.3-3.8 8.1-6.3 13.6-6.3"/><path fill="#fbbc04" d="M46.2 63.8c-9.8 0-17.7-7.9-17.7-17.7 0-4.3 1.5-8.3 4.1-11.3l-28 33.3c4.8 10.6 12.8 19.2 21 29.9l34.1-40.5c-3.3 3.9-8.1 6.3-13.5 6.3"/><path fill="#34a853" d="M59.1 109.2c15.4-24.1 33.3-35 33.3-63.1 0-9.1-2.6-17.5-7.1-24.7L25.6 98c2.8 3.7 5.8 8 8.6 13.2 6 11.2 12 21.1 12 21.1s6-9.9 12.9-23.1"/></svg>
+              Google
+            </a>
+            <a href="https://maps.apple.com/?ll=${coords[1]},${coords[0]}&q=${encodeURIComponent(p.name)}" target="_blank" rel="noopener" title="Open in Apple Maps" style="display:inline-flex;align-items:center;gap:3px;color:#555;text-decoration:none;font-size:12px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path fill="#555" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 0 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>
+              Apple Maps
+            </a>
+          </div>
         `;
 
         new maplibregl.Popup({ offset: 12 })

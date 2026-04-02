@@ -88,7 +88,8 @@ def enrich(parks: list[dict], boundaries_path: Path | str | None = None) -> list
         logger.warning("County boundaries not found at %s — skipping county enrichment", boundaries_path)
         # Still add geohashes
         for park in parks:
-            park["geohash"] = _simple_geohash(park["latitude"], park["longitude"])
+            if park.get("latitude") is not None and park.get("longitude") is not None:
+                park["geohash"] = _simple_geohash(park["latitude"], park["longitude"])
         return parks
 
     counties = _load_boundaries(boundaries_path)
@@ -97,8 +98,12 @@ def enrich(parks: list[dict], boundaries_path: Path | str | None = None) -> list
 
     enriched_count = 0
     for park in parks:
-        # Always add geohash
-        park["geohash"] = _simple_geohash(park["latitude"], park["longitude"])
+        # Always add geohash (if coords available)
+        if park.get("latitude") is not None and park.get("longitude") is not None:
+            park["geohash"] = _simple_geohash(park["latitude"], park["longitude"])
+        else:
+            logger.debug("Skipping enrichment for %s — no coordinates", park.get("name"))
+            continue
 
         # Skip county lookup if already known
         if park.get("county"):
@@ -118,4 +123,17 @@ def enrich(parks: list[dict], boundaries_path: Path | str | None = None) -> list
                          park["name"], park["latitude"], park["longitude"])
 
     logger.info("Enriched %d parks with county data", enriched_count)
+
+    # ── Normalise county names ────────────────────────────────────────
+    # Some sources set bare names like "Wake" instead of "Wake County".
+    # The boundaries GeoJSON uses "X County" format, so align everything.
+    normalised = 0
+    for park in parks:
+        county = park.get("county")
+        if county and not county.endswith(" County"):
+            park["county"] = f"{county} County"
+            normalised += 1
+    if normalised:
+        logger.info("Normalised %d county names to include ' County' suffix", normalised)
+
     return parks

@@ -1,0 +1,172 @@
+"""Export parks_latest.json to a formatted Excel workbook.
+
+Usage:
+    python export_excel.py                          # default output
+    python export_excel.py -o my_parks.xlsx         # custom output path
+    python export_excel.py -i data/final/other.json # custom input
+"""
+
+import argparse
+import json
+from pathlib import Path
+
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
+from openpyxl.utils import get_column_letter
+
+DATA_DIR = Path(__file__).parent / "data" / "final"
+DEFAULT_INPUT = DATA_DIR / "parks_latest.json"
+DEFAULT_OUTPUT = Path(__file__).parent / "nc_parks.xlsx"
+
+# Amenity columns in display order
+AMENITY_COLS = [
+    "playground", "restrooms", "parking", "walking_trails",
+    "picnic_tables", "picnic_shelter", "shaded_areas", "drinking_water",
+    "ada_accessible", "ball_fields", "basketball_courts", "tennis_courts",
+    "multipurpose_field", "swimming_pool", "splash_pad", "dog_park",
+    "disc_golf", "fishing", "skate_park", "bbq_grill",
+    "sand_volleyball", "bocce", "horseshoe", "bmx_track",
+    "equestrian", "lighting",
+]
+
+
+def _pretty(name: str) -> str:
+    """Convert snake_case amenity key to Title Case."""
+    return name.replace("_", " ").title()
+
+
+def export(input_path: Path, output_path: Path):
+    parks = json.loads(input_path.read_text(encoding="utf-8"))
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Parks"
+
+    # ---- Header row ----
+    base_headers = [
+        "Name", "City", "County", "State", "Address",
+        "Latitude", "Longitude", "Source", "Phone", "URL",
+        "Google Maps", "Apple Maps",
+    ]
+    headers = base_headers + [_pretty(a) for a in AMENITY_COLS]
+
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    header_fill = PatternFill(start_color="2E7D32", end_color="2E7D32", fill_type="solid")
+    thin_border = Border(
+        bottom=Side(style="thin", color="CCCCCC"),
+    )
+    link_font = Font(color="2563EB", underline="single", size=10)
+    check_font = Font(color="2E7D32", size=11)
+    body_font = Font(size=10)
+    body_align = Alignment(vertical="center", wrap_text=False)
+
+    for col_idx, h in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_idx, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    # ---- Data rows ----
+    for row_idx, park in enumerate(parks, 2):
+        lat = park.get("latitude")
+        lon = park.get("longitude")
+        name = park.get("name", "")
+        url = park.get("url") or ""
+
+        google_url = (f"https://www.google.com/maps/search/?api=1"
+                      f"&query={lat},{lon}") if lat and lon else ""
+        apple_url = (f"https://maps.apple.com/?ll={lat},{lon}"
+                     f"&q={name}") if lat and lon else ""
+
+        base_values = [
+            name,
+            park.get("city") or "",
+            park.get("county") or "",
+            park.get("state", "NC"),
+            park.get("address") or "",
+            lat,
+            lon,
+            park.get("source") or "",
+            park.get("phone") or "",
+            url,
+            google_url,
+            apple_url,
+        ]
+
+        amenities = park.get("amenities", {})
+        amenity_values = ["✓" if amenities.get(a) else "" for a in AMENITY_COLS]
+
+        for col_idx, val in enumerate(base_values + amenity_values, 1):
+            cell = ws.cell(row=row_idx, column=col_idx, value=val)
+            cell.font = body_font
+            cell.alignment = body_align
+            cell.border = thin_border
+
+        # Format URL column as clickable hyperlink
+        url_col = base_headers.index("URL") + 1
+        if url:
+            cell = ws.cell(row=row_idx, column=url_col)
+            cell.hyperlink = url
+            cell.font = link_font
+
+        # Format Google Maps link
+        gmap_col = base_headers.index("Google Maps") + 1
+        if google_url:
+            cell = ws.cell(row=row_idx, column=gmap_col)
+            cell.hyperlink = google_url
+            cell.value = "Open"
+            cell.font = link_font
+
+        # Format Apple Maps link
+        amap_col = base_headers.index("Apple Maps") + 1
+        if apple_url:
+            cell = ws.cell(row=row_idx, column=amap_col)
+            cell.hyperlink = apple_url
+            cell.value = "Open"
+            cell.font = link_font
+
+        # Style the checkmarks
+        for a_idx in range(len(AMENITY_COLS)):
+            col = len(base_headers) + a_idx + 1
+            cell = ws.cell(row=row_idx, column=col)
+            if cell.value == "✓":
+                cell.font = check_font
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    # ---- Column widths ----
+    col_widths = {
+        "Name": 30, "City": 16, "County": 18, "State": 6,
+        "Address": 35, "Latitude": 12, "Longitude": 12,
+        "Source": 20, "Phone": 16, "URL": 30,
+        "Google Maps": 12, "Apple Maps": 12,
+    }
+    for col_idx, h in enumerate(headers, 1):
+        letter = get_column_letter(col_idx)
+        ws.column_dimensions[letter].width = col_widths.get(h, 10)
+
+    # ---- Freeze panes & auto-filter ----
+    ws.freeze_panes = "A2"
+    ws.auto_filter.ref = f"A1:{get_column_letter(len(headers))}{len(parks) + 1}"
+
+    wb.save(output_path)
+    print(f"Exported {len(parks)} parks to {output_path}")
+    print(f"  Columns: {len(base_headers)} base + {len(AMENITY_COLS)} amenities")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Export parks to Excel")
+    parser.add_argument("-i", "--input", type=Path, default=DEFAULT_INPUT,
+                        help="Input JSON file")
+    parser.add_argument("-o", "--output", type=Path, default=DEFAULT_OUTPUT,
+                        help="Output Excel file")
+    args = parser.parse_args()
+
+    if not args.input.exists():
+        print(f"Error: {args.input} not found. Run the pipeline first.")
+        return
+
+    export(args.input, args.output)
+
+
+if __name__ == "__main__":
+    main()
