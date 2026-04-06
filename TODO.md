@@ -216,11 +216,12 @@
 
 ## Frontend
 
-- [ ] React + TypeScript + Vite project setup
-- [ ] MapLibre GL JS integration with clustered park markers
-- [ ] Amenity filter sidebar
-- [ ] Park detail panel / modal
-- [ ] Search by name / location
+- [x] React + TypeScript + Vite project setup
+- [x] MapLibre GL JS integration with clustered park markers
+- [x] Amenity filter sidebar
+- [x] Park detail panel / modal
+- [x] Search by name / location
+- [ ] Is it mobile-friendly?
 
 ---
 

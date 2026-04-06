@@ -3,11 +3,11 @@
 Runs the pipeline with --skip-fetch and a small --geocode-batch in a loop,
 pausing between rounds to respect Nominatim rate limits.
 
-Usage:
-    python warm_cache.py                    # default: 200 per round, 60s pause
-    python warm_cache.py --batch 100        # 100 per round
-    python warm_cache.py --rounds 5         # run 5 rounds then stop
-    python warm_cache.py --pause 120        # 120s between rounds
+Usage (from project root):
+    python -m data-pipeline.utils.warm_cache                    # default: 200 per round, 60s pause
+    python -m data-pipeline.utils.warm_cache --batch 100        # 100 per round
+    python -m data-pipeline.utils.warm_cache --rounds 5         # run 5 rounds then stop
+    python -m data-pipeline.utils.warm_cache --pause 120        # 120s between rounds
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from pathlib import Path
 logging.basicConfig(level=logging.INFO, format="%(levelname)-8s %(message)s")
 logger = logging.getLogger(__name__)
 
-_ROOT = Path(__file__).resolve().parent
+_ROOT = Path(__file__).resolve().parent.parent.parent
 _CACHE_PATH = _ROOT / "data" / "reference" / "geocode_cache.json"
 _LATEST = _ROOT / "data" / "final" / "parks_latest.json"
 

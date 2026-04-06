@@ -1,9 +1,9 @@
 """Export parks_latest.json to a formatted Excel workbook.
 
-Usage:
-    python export_excel.py                          # default output
-    python export_excel.py -o my_parks.xlsx         # custom output path
-    python export_excel.py -i data/final/other.json # custom input
+Usage (from project root):
+    python -m data-pipeline.utils.export_excel                          # default output
+    python -m data-pipeline.utils.export_excel -o my_parks.xlsx         # custom output path
+    python -m data-pipeline.utils.export_excel -i data/final/other.json # custom input
 """
 
 import argparse
@@ -14,9 +14,10 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 
-DATA_DIR = Path(__file__).parent / "data" / "final"
+_ROOT = Path(__file__).resolve().parent.parent.parent
+DATA_DIR = _ROOT / "data" / "final"
 DEFAULT_INPUT = DATA_DIR / "parks_latest.json"
-DEFAULT_OUTPUT = Path(__file__).parent / "nc_parks.xlsx"
+DEFAULT_OUTPUT = _ROOT / "nc_parks.xlsx"
 
 # Amenity columns in display order
 AMENITY_COLS = [

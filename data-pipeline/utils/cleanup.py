@@ -1,9 +1,9 @@
 """Remove old raw/processed/final data files, keeping the N most recent per source.
 
-Usage:
-    python cleanup.py              # dry run — show what would be deleted
-    python cleanup.py --delete     # actually delete
-    python cleanup.py --keep 5     # keep 5 most recent (default: 3)
+Usage (from project root):
+    python -m data-pipeline.utils.cleanup              # dry run — show what would be deleted
+    python -m data-pipeline.utils.cleanup --delete     # actually delete
+    python -m data-pipeline.utils.cleanup --keep 5     # keep 5 most recent (default: 3)
 """
 
 import argparse
@@ -11,7 +11,8 @@ import re
 from collections import defaultdict
 from pathlib import Path
 
-DATA = Path(__file__).parent / "data"
+_ROOT = Path(__file__).resolve().parent.parent.parent
+DATA = _ROOT / "data"
 
 # Directories to clean and their filename patterns
 # Each file looks like: {source}_{timestamp}.json
@@ -62,7 +63,7 @@ def main():
         if not stale:
             continue
 
-        rel = d.relative_to(Path(__file__).parent)
+        rel = d.relative_to(_ROOT)
         print(f"\n{rel}/  ({len(stale)} to remove, keeping {args.keep})")
         for f in stale:
             size = f.stat().st_size
