@@ -221,7 +221,7 @@
 - [x] Amenity filter sidebar
 - [x] Park detail panel / modal
 - [x] Search by name / location
-- [ ] Is it mobile-friendly?
+- [x] Is it mobile-friendly?
 
 ---
 

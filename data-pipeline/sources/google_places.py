@@ -103,12 +103,28 @@ def _headers(field_paths: list[str], api_key: str) -> dict:
     }
 
 
+# Field sets by billing tier
+FIELDS_FREE: list[str] = []  # IDs only — $0
+FIELDS_PRO: list[str] = [
+    "places.displayName",
+    "places.formattedAddress",
+    "places.location",
+    "places.types",
+    "places.rating",
+    "places.userRatingCount",
+    "places.websiteUri",
+    "places.googleMapsUri",
+    "places.accessibilityOptions",
+]
+
+
 def _text_search_page(
     api_key: str,
     text_query: str,
     included_type: str,
     tile: dict,
     page_token: str | None = None,
+    extra_fields: list[str] | None = None,
 ) -> dict:
     """Execute one page of a Text Search request."""
     body = {
@@ -120,20 +136,7 @@ def _text_search_page(
     if page_token:
         body["pageToken"] = page_token
 
-    # Pro fields: gives us name, address, location, types, website, etc.
-    fields = [
-        "places.id",
-        "places.displayName",
-        "places.formattedAddress",
-        "places.location",
-        "places.types",
-        "places.rating",
-        "places.userRatingCount",
-        "places.websiteUri",
-        "places.googleMapsUri",
-        "places.accessibilityOptions",
-        "nextPageToken",
-    ]
+    fields = ["places.id", "nextPageToken"] + (extra_fields or [])
 
     resp = requests.post(
         f"{BASE}/places:searchText",
@@ -151,6 +154,7 @@ def search_tile(
     included_type: str,
     tile: dict,
     tile_label: str,
+    extra_fields: list[str] | None = None,
 ) -> list[dict]:
     """Search all pages for a single tile. Returns list of place dicts."""
     places = []
@@ -159,7 +163,7 @@ def search_tile(
 
     while True:
         page_num += 1
-        data = _text_search_page(api_key, text_query, included_type, tile, page_token)
+        data = _text_search_page(api_key, text_query, included_type, tile, page_token, extra_fields)
         batch = data.get("places", [])
         places.extend(batch)
 
@@ -178,14 +182,20 @@ def search_tile(
 # ---------------------------------------------------------------------------
 
 
-def fetch() -> list[dict]:
+def fetch(pro: bool = False) -> list[dict]:
     """Discover parks & playgrounds across NC via tiled Text Search.
+
+    Args:
+        pro: If True, request Pro-tier fields (name, address, location, etc.)
+             ~$28 per full run. If False, IDs only (free).
 
     Returns a list of normalized park dicts ready for the pipeline.
     """
+    extra_fields = FIELDS_PRO if pro else FIELDS_FREE
+    tier = "Pro (~$28)" if pro else "IDs-only (FREE)"
     api_key = _load_api_key()
     tiles = generate_tiles()
-    logger.info("Generated %d tiles covering NC", len(tiles))
+    logger.info("Generated %d tiles covering NC — billing tier: %s", len(tiles), tier)
 
     # Collect all raw results keyed by place ID for dedup
     seen: dict[str, dict] = {}
@@ -202,7 +212,7 @@ def fetch() -> list[dict]:
             )
 
             try:
-                places = search_tile(api_key, text_query, place_type, tile, tile_label)
+                places = search_tile(api_key, text_query, place_type, tile, tile_label, extra_fields)
             except requests.HTTPError as e:
                 logger.warning("  %s FAILED: %s", tile_label, e)
                 time.sleep(1)
@@ -294,6 +304,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Google Places NC park discovery")
     parser.add_argument("--dry-run", action="store_true",
                         help="Show tile grid without calling API")
+    tier = parser.add_mutually_exclusive_group()
+    tier.add_argument("--free", action="store_true", default=True,
+                      help="IDs-only field mask — $0 cost (default)")
+    tier.add_argument("--pro", action="store_true",
+                      help="Pro field mask (name, address, coords, etc.) — ~$28/run")
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -313,7 +328,16 @@ if __name__ == "__main__":
         print(f"Estimated time: ~{len(tiles) * len(PLACE_TYPES) * 1.3 * REQUEST_DELAY / 60:.1f} min")
         sys.exit(0)
 
-    results = fetch()
+    results = fetch(pro=args.pro)
+
+    # ── Save to disk FIRST ──
+    from datetime import datetime
+    ts = datetime.now().strftime("%Y%m%dT%H%M%S")
+    out_dir = Path(__file__).resolve().parents[2] / "data" / "raw"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"google_places_{ts}.json"
+    out_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
+    print(f"\nSaved {len(results)} results → {out_path}")
 
     # Summary
     rated = [p for p in results if p["extras"].get("google_rating")]

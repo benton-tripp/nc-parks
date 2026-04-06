@@ -1,25 +1,38 @@
 import type { Park } from "../../types/park";
 import { AMENITY_LABELS } from "../../types/park";
+import { useMapProvider, directionsUrl } from "../../hooks/useMapProvider";
 
 interface Props {
   park: Park;
   onClose: () => void;
 }
 
-function directionsUrl(park: Park): string {
-  return `https://www.google.com/maps/dir/?api=1&destination=${park.latitude},${park.longitude}`;
-}
-
 export default function ParkDetail({ park, onClose }: Props) {
+  const { provider } = useMapProvider();
   const positiveAmenities = Object.entries(park.amenities)
     .filter(([, v]) => v)
     .map(([k]) => AMENITY_LABELS[k] ?? k.replace(/_/g, " "))
     .sort();
 
   return (
-    <div className="flex w-80 shrink-0 flex-col border-l border-gray-200 bg-white shadow-lg">
+    <>
+      {/* Mobile backdrop */}
+      <div
+        className="fixed inset-0 z-30 bg-black/40 md:hidden"
+        onClick={onClose}
+      />
+
+      {/* Desktop: right sidebar. Mobile: bottom sheet */}
+      <div
+        className="fixed inset-x-0 bottom-0 z-40 flex max-h-[70vh] flex-col rounded-t-2xl
+                   bg-white shadow-2xl md:static md:inset-auto md:z-auto md:max-h-none
+                   md:w-80 md:shrink-0 md:rounded-none md:border-l md:border-gray-200
+                   md:shadow-lg"
+      >
       {/* Header */}
       <div className="flex items-start justify-between gap-2 border-b border-gray-200 p-4">
+        {/* Mobile drag handle */}
+        <div className="absolute left-1/2 top-2 h-1 w-8 -translate-x-1/2 rounded-full bg-gray-300 md:hidden" />
         <div>
           <h2 className="text-lg font-bold leading-tight">{park.name}</h2>
           {park.county && (
@@ -54,7 +67,7 @@ export default function ParkDetail({ park, onClose }: Props) {
         {/* Action buttons */}
         <div className="mb-4 flex flex-wrap gap-2">
           <a
-            href={directionsUrl(park)}
+            href={directionsUrl(park, provider)}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-3
@@ -85,16 +98,19 @@ export default function ParkDetail({ park, onClose }: Props) {
               Website
             </a>
           )}
-          {park.phone && (
+        </div>
+
+        {/* Phone */}
+        {park.phone && (
+          <div className="mb-4">
             <a
               href={`tel:${park.phone}`}
-              className="inline-flex items-center gap-1 rounded-lg border border-gray-300
-                         px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="inline-flex items-center gap-1 text-sm text-gray-700 hover:underline"
             >
               {park.phone}
             </a>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Amenity badges */}
         {positiveAmenities.length > 0 && (
@@ -130,6 +146,7 @@ export default function ParkDetail({ park, onClose }: Props) {
           )}
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
