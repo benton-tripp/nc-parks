@@ -103,7 +103,7 @@ def _headers(field_paths: list[str], api_key: str) -> dict:
     }
 
 
-# Field sets by billing tier
+# Text Search field sets by billing tier
 FIELDS_FREE: list[str] = []  # IDs only — $0
 FIELDS_PRO: list[str] = [
     "places.displayName",
@@ -116,6 +116,27 @@ FIELDS_PRO: list[str] = [
     "places.googleMapsUri",
     "places.accessibilityOptions",
 ]
+
+# Place Details field sets (different tier mapping than Text Search!)
+# Billing is at the HIGHEST tier field in the mask.
+DETAILS_ESSENTIALS: list[str] = [       # $5/1K — NO display name!
+    "formattedAddress", "location", "types",
+]
+DETAILS_PRO: list[str] = [              # $17/1K — minimum useful tier
+    "formattedAddress", "location", "types",
+    "displayName", "accessibilityOptions", "googleMapsUri",
+]
+DETAILS_ENTERPRISE: list[str] = [       # $20/1K
+    "formattedAddress", "location", "types",
+    "displayName", "accessibilityOptions", "googleMapsUri",
+    "rating", "userRatingCount", "websiteUri",
+]
+
+DETAILS_TIERS = {
+    "essentials": DETAILS_ESSENTIALS,
+    "pro": DETAILS_PRO,
+    "enterprise": DETAILS_ENTERPRISE,
+}
 
 
 def _text_search_page(
@@ -294,6 +315,158 @@ def _to_park_dict(place: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Place Details enrichment
+# ---------------------------------------------------------------------------
+
+
+def _find_latest_file() -> Path | None:
+    """Find the most recent google_places_*.json in data/raw/."""
+    raw_dir = Path(__file__).resolve().parents[2] / "data" / "raw"
+    files = sorted(raw_dir.glob("google_places_*.json"), reverse=True)
+    return files[0] if files else None
+
+
+def _get_place_details(api_key: str, place_id: str, fields: list[str]) -> dict:
+    """Fetch details for a single place by ID."""
+    resp = requests.get(
+        f"{BASE}/places/{place_id}",
+        headers=_headers(["id"] + fields, api_key),
+        timeout=30,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def _needs_enrichment(park: dict) -> bool:
+    """True if this entry has only an ID and no detail fields."""
+    return park.get("latitude") is None or park.get("name") in (None, "Unknown")
+
+
+def _needs_upgrade(park: dict) -> bool:
+    """True if this entry was enriched at a lower tier and is missing ratings."""
+    if _needs_enrichment(park):
+        return True
+    return park.get("extras", {}).get("google_rating") is None
+
+
+def _apply_details(park: dict, details: dict) -> dict:
+    """Merge Place Details response into an existing park dict."""
+    loc = details.get("location", {})
+    display = details.get("displayName", {})
+    types = details.get("types", [])
+    accessibility = details.get("accessibilityOptions", {})
+
+    if loc.get("latitude"):
+        park["latitude"] = loc["latitude"]
+        park["longitude"] = loc["longitude"]
+    if details.get("formattedAddress"):
+        park["address"] = details["formattedAddress"]
+    if display.get("text"):
+        park["name"] = display["text"]
+    if details.get("websiteUri"):
+        park["url"] = details["websiteUri"]
+
+    # Update extras
+    extras = park.get("extras", {})
+    if details.get("googleMapsUri"):
+        extras["google_maps_uri"] = details["googleMapsUri"]
+    if details.get("rating"):
+        extras["google_rating"] = details["rating"]
+    if details.get("userRatingCount"):
+        extras["google_rating_count"] = details["userRatingCount"]
+    if types:
+        extras["google_types"] = types
+
+    # Rebuild amenities from types + accessibility
+    type_amenity_map = {
+        "playground": "playground", "dog_park": "dog_park",
+        "campground": "camping", "swimming_pool": "swimming_pool",
+        "golf_course": "golf", "hiking_area": "walking_trails",
+        "botanical_garden": "gardens", "zoo": "live_animals",
+        "wildlife_park": "live_animals",
+    }
+    amenities = park.get("amenities", {})
+    for gtype, amenity_key in type_amenity_map.items():
+        if gtype in types:
+            amenities[amenity_key] = True
+    if accessibility.get("wheelchairAccessibleEntrance"):
+        amenities["wheelchair_accessible"] = True
+    park["amenities"] = amenities
+    park["extras"] = extras
+
+    return park
+
+
+def enrich(tier: str = "essentials", input_file: Path | None = None,
+           limit: int | None = None, upgrade: bool = False) -> list[dict]:
+    """Load latest discovery file and enrich IDs-only entries via Place Details.
+
+    Args:
+        tier: One of 'essentials' ($5/1K), 'pro' ($17/1K), 'enterprise' ($20/1K).
+        input_file: Override the auto-detected latest file.
+        limit: Max number of entries to enrich (None = all).
+        upgrade: Re-enrich entries missing ratings (enriched at a lower tier).
+
+    Returns the full list of parks (enriched + already-enriched).
+    """
+    src = input_file or _find_latest_file()
+    if not src or not src.exists():
+        sys.exit("ERROR: No google_places_*.json found in data/raw/. Run --free first.")
+
+    parks = json.loads(src.read_text(encoding="utf-8"))
+    logger.info("Loaded %d parks from %s", len(parks), src.name)
+
+    if tier == "essentials":
+        logger.warning(
+            "⚠ essentials tier does NOT include displayName — "
+            "parks will remain 'Unknown'. Use --tier pro ($17/1K) for names."
+        )
+    fields = DETAILS_TIERS[tier]
+    cost_per_k = {"essentials": 5, "pro": 17, "enterprise": 20}[tier]
+    selector = _needs_upgrade if upgrade else _needs_enrichment
+    to_enrich = [p for p in parks if selector(p)]
+    if limit:
+        to_enrich = to_enrich[:limit]
+    mode = "upgrade" if upgrade else "enrichment"
+    logger.info(
+        "%d need %s (%d already complete) — tier=%s, est. cost=$%.2f",
+        len(to_enrich), mode, len(parks) - len(to_enrich), tier,
+        len(to_enrich) * cost_per_k / 1000,
+    )
+
+    if not to_enrich:
+        logger.info("Nothing to enrich — all entries already have details.")
+        return parks
+
+    api_key = _load_api_key()
+    enriched = 0
+    failed = 0
+
+    for i, park in enumerate(to_enrich):
+        place_id = park.get("extras", {}).get("google_place_id") or park.get("source_id")
+        if not place_id:
+            logger.warning("  Skipping entry with no place ID")
+            failed += 1
+            continue
+
+        try:
+            details = _get_place_details(api_key, place_id, fields)
+            _apply_details(park, details)
+            enriched += 1
+        except requests.HTTPError as e:
+            logger.warning("  %s FAILED: %s", place_id, e)
+            failed += 1
+
+        if (i + 1) % 100 == 0:
+            logger.info("  Progress: %d/%d enriched", i + 1, len(to_enrich))
+
+        time.sleep(REQUEST_DELAY)
+
+    logger.info("Enrichment complete: %d enriched, %d failed", enriched, failed)
+    return parks
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -304,11 +477,24 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Google Places NC park discovery")
     parser.add_argument("--dry-run", action="store_true",
                         help="Show tile grid without calling API")
+
+    # Discovery mode (Text Search)
     tier = parser.add_mutually_exclusive_group()
     tier.add_argument("--free", action="store_true", default=True,
                       help="IDs-only field mask — $0 cost (default)")
     tier.add_argument("--pro", action="store_true",
                       help="Pro field mask (name, address, coords, etc.) — ~$28/run")
+
+    # Enrichment mode (Place Details per-ID)
+    parser.add_argument("--enrich", action="store_true",
+                        help="Enrich IDs-only entries from latest file via Place Details")
+    parser.add_argument("--tier", choices=["essentials", "pro", "enterprise"],
+                        default="pro",
+                        help="Place Details tier: essentials=$5/1K (no names!), pro=$17/1K (default), enterprise=$20/1K")
+    parser.add_argument("--limit", type=int, default=None,
+                        help="Max number of entries to enrich (for testing)")
+    parser.add_argument("--upgrade", action="store_true",
+                        help="Re-enrich entries missing ratings (previously enriched at lower tier)")
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -328,13 +514,22 @@ if __name__ == "__main__":
         print(f"Estimated time: ~{len(tiles) * len(PLACE_TYPES) * 1.3 * REQUEST_DELAY / 60:.1f} min")
         sys.exit(0)
 
+    from datetime import datetime
+    out_dir = Path(__file__).resolve().parents[2] / "data" / "raw"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.enrich:
+        results = enrich(tier=args.tier, limit=args.limit, upgrade=args.upgrade)
+        ts = datetime.now().strftime("%Y%m%dT%H%M%S")
+        out_path = out_dir / f"google_places_{ts}.json"
+        out_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
+        print(f"\nSaved {len(results)} results → {out_path}")
+        sys.exit(0)
+
     results = fetch(pro=args.pro)
 
     # ── Save to disk FIRST ──
-    from datetime import datetime
     ts = datetime.now().strftime("%Y%m%dT%H%M%S")
-    out_dir = Path(__file__).resolve().parents[2] / "data" / "raw"
-    out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"google_places_{ts}.json"
     out_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
     print(f"\nSaved {len(results)} results → {out_path}")

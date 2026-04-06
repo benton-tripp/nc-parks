@@ -97,8 +97,8 @@
 #### Wilmington (`wilmington.py`)
 
 - **URL:** https://www.wilmingtonnc.gov/files/assets/city/v/1/parks-amp-rec/documents/amenities/parksamenitiessheet_2025-3.pdf
-- **Insight:** Primary source is a **PDF amenities spreadsheet**. Would need `pdfplumber` or `tabula-py` to extract the table. Rich amenity data in tabular form. Check if Wilmington also has a web-based parks listing or ArcGIS portal.
-- **Method:** PDF parsing (`pdfplumber`) or find web alternative
+- **Insight:** Primary source is a **PDF amenities spreadsheet**. Would need `pyMuPDF`, `pdfplumber`, or `tabula-py` to extract the table. Rich amenity data in tabular form. Check if Wilmington also has a web-based parks listing or ArcGIS portal.
+- **Method:** PDF parsing (`pyMuPDF`) or find web alternative
 - **Amenities:** Yes — detailed amenities table in PDF
 - **Coordinates:** Geocode from addresses
 - **Difficulty:** Medium (PDF parsing)
@@ -165,8 +165,8 @@
 #### New Hanover County (`new_hanover_county.py`)
 
 - **URL:** https://www.nhcgov.com/DocumentCenter/View/844/Parks-Guide-PDF?bidId=
-- **Insight:** This is a **PDF**, not a web page. Needs `pdfplumber` or `tabula-py` to extract tables. Lowest priority — OSM likely covers most NHC parks already.
-- **Method:** PDF parsing (`pdfplumber`)
+- **Insight:** This is a **PDF**, not a web page. Needs `pyMuPDF`, `pdfplumber`, or `tabula-py` to extract tables. Lowest priority — OSM likely covers most NHC parks already.
+- **Method:** PDF parsing (e.g., `pyMuPDF`)
 - **Difficulty:** Medium (PDF extraction is brittle)
 
 #### House of Hensen blog (`scraper.py`)
@@ -189,28 +189,28 @@
 - [x] Geocode cache warming — `warm_cache.py` script runs `--skip-fetch --geocode-batch N` in rounds with pauses
 - [x] County name normalization — enrich.py appends " County" suffix to bare names ("Wake" → "Wake County")
 - [ ] Remaining Locations:
-    [ ] Goldsboro
-    [ ] Wilson
-    [ ] Wilmington
-    [ ] New Hanover County
-    [ ] New Bern
-    [ ] Meckleburg County
-    [ ] Manteo
-    [ ] Lexington
-    [ ] Henderson County
-    [ ] Graham
-    [ ] Fayetteville
-    [ ] Elizabeth City
-    [ ] Durham County
-    [ ] Charlotte
-    [ ] Asheville
+    - [ ] Asheville — [ashevillenc.gov](https://www.ashevillenc.gov/locations/?avl_department=parks-recreation) ~69 locations, Leaflet map has coords in JS, amenity tags on listing page
+    - [ ] Charlotte — No official API; 3rd-party sites: [charlottemomsnetwork](https://charlottemomsnetwork.com/resources/playgrounds/), [charlottesgotalot](https://www.charlottesgotalot.com/articles/things-to-do/parks-and-playground-guide), [fun4charlottekids](https://fun4charlottekids.com/Fun-Around-Town/Playgrounds-and-Parks/Page-1.html); check `opendata.mecknc.gov` for ArcGIS
+    - [ ] Durham County — [dprplaymore.org](https://www.dprplaymore.org/253/Playgrounds) ~57 playgrounds, CivicPlus structured table (age range, swings, ADA)
+    - [ ] Elizabeth City — [elizabethcitync.gov](https://elizabethcitync.gov/index.asp?SEC=9A0A06B6-91C1-43C8-B01C-C0494E945138&DE=67B17754-3A18-49D3-AB59-03D5A21213B0) — needs research
+    - [ ] Fayetteville — [fayettevillenc.gov](https://www.fayettevillenc.gov/Parks-and-Recreation/Parks-Trails) ~13+ parks, Granicus CMS, also has ArcGIS map
+    - [ ] Goldsboro — [goldsboroparksandrec.com](https://www.goldsboroparksandrec.com/parks/) ~13 parks + 2 greenways, WordPress, detail pages for amenities
+    - [ ] Graham — [cityofgraham.com](https://www.cityofgraham.com/grpd-parks-playgrounds/) WordPress, small count
+    - [ ] Henderson County — [hendersoncountync.gov](https://www.hendersoncountync.gov/recreation/page/parks-facilities) ~15 parks, Drupal + OpenLayers map, coords in JS
+    - [ ] Lexington — [lexingtonnc.gov](https://www.lexingtonnc.gov/city-services/parks-and-recreation/parks-and-facilities) Granicus CMS, tabbed content
+    - [ ] Manteo — [manteonc.gov](https://www.manteonc.gov/community/visitors/parks-and-playgrounds) Granicus CMS, ~3-5 parks
+    - [ ] Mecklenburg County — [parkandrec.mecknc.gov](https://parkandrec.mecknc.gov/Places-to-Visit/Parks) redirects to Google Maps embed, need ArcGIS portal
+    - [ ] New Bern — [newbernnc.gov](https://www.newbernnc.gov/departments/parks.php) ~30+ parks, Revize CMS, names/addresses only
+    - [ ] New Hanover County — [PDF](https://www.nhcgov.com/DocumentCenter/View/844/Parks-Guide-PDF?bidId=) — needs pyMuPDF, low priority (OSM covers most)
+    - [ ] Wilmington — [PDF](https://www.wilmingtonnc.gov/files/assets/city/v/1/parks-amp-rec/documents/amenities/parksamenitiessheet_2025-3.pdf) — rich amenity table, needs pyMuPDF
+    - [ ] Wilson — [wilsonnc.org](https://www.wilsonnc.org/residents/all-departments/parks-recreation/parks-shelters) ~38 parks, Granicus CMS, paginated
 - [ ] OSM amenity enrichment for remaining unmapped child POI tags
 - [ ] Reverse geocode remaining ~2,000 OSM parks missing addresses
+- [ ] Update Sources to be the URLs
+- [ ] Update duplicates (e.g., Wilson's Mills Athletic Complex has three entries)
 - [ ] Google Places API?
     - [Google Places API Overview](https://developers.google.com/maps/documentation/places/web-service/overview)
     - [Google Maps Platform core services pricing list](https://developers.google.com/maps/billing-and-pricing/pricing#places-pricing)
-- [ ] Update Sources to be the URLs
-- [ ] Update duplicates (e.g., Wilson's Mills Athletic Complex has three entries)
 
 ---
 

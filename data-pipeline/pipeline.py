@@ -55,8 +55,21 @@ SOURCES = {
     "southern_pines":   "sources.southern_pines",
     "nash_county":      "sources.nash_county",
     "kill_devil_hills": "sources.kill_devil_hills",
-    # "charlotte":    "sources.charlotte",
-    # "nc_onemap":    "sources.nc_onemap",
+    "graham":           "sources.graham",
+    "manteo":           "sources.manteo",
+    "elizabeth_city":   "sources.elizabeth_city",
+    "new_bern":         "sources.new_bern",
+    "wilson":           "sources.wilson",
+    "fayetteville":     "sources.fayetteville",
+    "goldsboro":        "sources.goldsboro",
+    "henderson_county": "sources.henderson_county",
+    "durham":           "sources.durham_county",
+    "lexington":        "sources.lexington",
+    "asheville":        "sources.asheville",
+    "charlotte":        "sources.charlotte",
+    "mecklenburg_county": "sources.meckleburg_county",
+    "wilmington":       "sources.wilmington",
+    "new_hanover_county": "sources.new_hanover_county",
 }
 
 
