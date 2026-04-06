@@ -188,8 +188,29 @@
 - [x] Nominatim rate limit recovery — persistent backoff state in `nominatim_backoff.json`, escalating delays across runs
 - [x] Geocode cache warming — `warm_cache.py` script runs `--skip-fetch --geocode-batch N` in rounds with pauses
 - [x] County name normalization — enrich.py appends " County" suffix to bare names ("Wake" → "Wake County")
+- [ ] Remaining Locations:
+    [ ] Goldsboro
+    [ ] Wilson
+    [ ] Wilmington
+    [ ] New Hanover County
+    [ ] New Bern
+    [ ] Meckleburg County
+    [ ] Manteo
+    [ ] Lexington
+    [ ] Henderson County
+    [ ] Graham
+    [ ] Fayetteville
+    [ ] Elizabeth City
+    [ ] Durham County
+    [ ] Charlotte
+    [ ] Asheville
 - [ ] OSM amenity enrichment for remaining unmapped child POI tags
 - [ ] Reverse geocode remaining ~2,000 OSM parks missing addresses
+- [ ] Google Places API?
+    - [Google Places API Overview](https://developers.google.com/maps/documentation/places/web-service/overview)
+    - [Google Maps Platform core services pricing list](https://developers.google.com/maps/billing-and-pricing/pricing#places-pricing)
+- [ ] Update Sources to be the URLs
+- [ ] Update duplicates (e.g., Wilson's Mills Athletic Complex has three entries)
 
 ---
 

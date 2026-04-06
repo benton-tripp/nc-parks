@@ -27,6 +27,7 @@ Canonical park schema
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 
 logger = logging.getLogger(__name__)
@@ -98,11 +99,68 @@ def normalize(parks: list[dict], source_name: str) -> list[dict]:
             logger.warning("Dropping park with no coords and no address: %s", park)
             continue
 
+        # Filter out non-park entries (museums, cemeteries, plazas, etc.)
+        if _is_non_park(park["name"], park.get("amenities")):
+            logger.debug("Filtering non-park entry: %s (%s)",
+                         park["name"], source_name)
+            continue
+
         normalized.append(park)
 
     logger.info("Normalized %d / %d records from %s",
                 len(normalized), len(parks), source_name)
     return normalized
+
+
+# ---- Non-park filtering --------------------------------------------------
+# Drop entries whose names clearly indicate they are NOT parks or
+# playgrounds.  We're conservative: if a park-like word also appears
+# in the name (e.g. "Museum Park", "Church Street Park"), we keep it.
+
+_PARK_WORDS = re.compile(
+    r"\b(park|playground|field|greenway|trail|recreation|play\s*ground"
+    r"|play\s*area|skate|splash|spray|dog\s*park)\b",
+    re.IGNORECASE,
+)
+
+# Each entry: keyword that triggers a drop, UNLESS a park word also appears.
+_NON_PARK_KEYWORDS = [
+    "museum",
+    "cemetery",
+    "country club",
+    "memorial garden",
+    "botanical garden",
+    "arboretum",
+]
+
+# These drop unconditionally — never a park regardless of other words.
+_NON_PARK_EXACT = re.compile(
+    r"^(central downtown plaza|wolf plaza|belk plaza"
+    r"|john montgomery belk plaza|dale earnhardt tribute plaza"
+    r"|corpening plaza|riverlink sculpture.*)$",
+    re.IGNORECASE,
+)
+
+
+def _is_non_park(name: str, amenities: dict | None = None) -> bool:
+    """Return True if the entry is not a park/playground.
+
+    Checks name-based keywords first, then falls back to amenity
+    metadata: an entry whose *only* positive amenity is ``museum``
+    is treated as a pure museum and filtered out.
+    """
+    if _NON_PARK_EXACT.match(name.strip()):
+        return True
+    name_lower = name.lower()
+    for kw in _NON_PARK_KEYWORDS:
+        if kw in name_lower and not _PARK_WORDS.search(name):
+            return True
+    # Pure-museum check: museum is the only positive amenity
+    if amenities:
+        truthy = {k for k, v in amenities.items() if v}
+        if truthy and truthy <= {"museum"}:
+            return True
+    return False
 
 
 # ---- Source-specific handlers --------------------------------------------

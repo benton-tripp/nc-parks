@@ -410,6 +410,7 @@ npm run dev
 ```
 
 Environment variables (`.env.local`):
+
 ```
 VITE_API_URL=http://localhost:3000
 VITE_MAPTILER_KEY=your_key_here
@@ -435,12 +436,30 @@ pip install -r requirements.txt
 # Run from project root:
 python data-pipeline/pipeline.py                          # all registered sources
 python data-pipeline/pipeline.py -s wake_county            # single source
-python data-pipeline/pipeline.py --refresh-boundaries      # re-fetch county polygons
-python data-pipeline/pipeline.py --dry-run                 # process without saving
+python data-pipeline/pipeline.py -s wake_county -s osm     # multiple sources
+python data-pipeline/pipeline.py --skip-fetch              # re-normalize from cached raw files
+python data-pipeline/pipeline.py --skip-geocode            # skip reverse geocoding step
+python data-pipeline/pipeline.py --skip-fetch --skip-geocode  # fast reprocess from raw cache
+python data-pipeline/pipeline.py --reprocess               # re-run geocode/enrich/dedup on parks_latest.json
+python data-pipeline/pipeline.py --geocode-batch 200       # limit geocode API calls (≈1 req/sec)
+python data-pipeline/pipeline.py --refresh-boundaries      # re-download county boundary polygons
+python data-pipeline/pipeline.py --dry-run                 # process without writing final output
 python data-pipeline/pipeline.py -v                        # verbose/debug logging
 ```
 
+| Flag | Short | Description |
+|---|---|---|
+| `--source NAME` | `-s` | Run only the named source(s). Repeatable. Default: all registered sources. |
+| `--skip-fetch` | | Load from latest raw files on disk instead of re-fetching from APIs/scrapers. |
+| `--skip-geocode` | | Skip the Nominatim reverse-geocode step entirely. |
+| `--reprocess` | | Load `parks_latest.json` and re-run geocode → enrich → validate → dedup → save (skips fetch + normalize). |
+| `--geocode-batch N` | | Cap the number of geocode API calls per run (0 = unlimited). Nominatim rate: ≈1 req/sec. |
+| `--refresh-boundaries` | | Re-download NC county boundary polygons from the Census Bureau. |
+| `--dry-run` | `-n` | Run the full pipeline but don't write final output files. |
+| `--verbose` | `-v` | Enable debug-level logging. |
+
 Output lands in `data/` (gitignored):
+
 - `data/raw/` — timestamped snapshots of each source
 - `data/processed/` — post-normalize, post-enrich
 - `data/final/parks_latest.json` — deduplicated, ready for frontend or DynamoDB load
@@ -504,7 +523,7 @@ The API-first backend design means the mobile app consumes the exact same endpoi
 
 ### Phase 1 — MVP
 
-- [ ] Data pipeline: OSM + 2–3 city open data sources
+- [ ] Data pipeline: OSM + city/county open data sources
 - [ ] Map view with park markers and clustering
 - [ ] Amenity filters (restrooms, fenced, swings, shade, etc.)
 - [ ] Basic park detail page with amenity checklist

@@ -178,13 +178,26 @@ def step_refresh_boundaries():
     return counties
 
 
+def step_load_latest() -> list[dict]:
+    """Load the most recent parks_latest.json for reprocessing."""
+    latest = _FINAL / "parks_latest.json"
+    if not latest.exists():
+        logger.error("No parks_latest.json found — run the full pipeline first")
+        return []
+    with open(latest) as f:
+        parks = json.load(f)
+    logger.info("Loaded %d parks from %s", len(parks), latest.name)
+    return parks
+
+
 # ---- Main ----------------------------------------------------------------
 
 def run(source_names: list[str] | None = None,
         dry_run: bool = False,
         refresh_boundaries: bool = False,
         geocode_batch: int = 0,
-        skip_fetch: bool = False):
+        skip_fetch: bool = False,
+        reprocess: bool = False):
     """Run the full pipeline.
 
     Parameters
@@ -197,6 +210,9 @@ def run(source_names: list[str] | None = None,
         If True, re-download county boundaries before enrichment.
     skip_fetch:
         If True, load from the latest raw files instead of re-fetching.
+    reprocess:
+        If True, load from parks_latest.json and re-run geocode →
+        enrich → validate → dedup → save.  Skips fetch + normalize.
     """
     _ensure_dirs()
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
@@ -208,21 +224,27 @@ def run(source_names: list[str] | None = None,
     if refresh_boundaries or not (_REFERENCE / "nc_counties.geojson").exists():
         step_refresh_boundaries()
 
-    # 1. Fetch
-    if skip_fetch:
-        raw_by_source = step_load_raw(source_names)
+    if reprocess:
+        # Load existing final output and re-run downstream steps
+        all_parks = step_load_latest()
+        if not all_parks:
+            return
     else:
-        raw_by_source = step_fetch(source_names)
-    if not raw_by_source:
-        logger.error("No data fetched — aborting")
-        return
+        # 1. Fetch
+        if skip_fetch:
+            raw_by_source = step_load_raw(source_names)
+        else:
+            raw_by_source = step_fetch(source_names)
+        if not raw_by_source:
+            logger.error("No data fetched — aborting")
+            return
 
-    # Save raw data for debugging / reprocessing
-    for name, parks in raw_by_source.items():
-        _save_json(parks, _RAW / f"{name}_{timestamp}.json", f"raw {name}")
+        # Save raw data for debugging / reprocessing
+        for name, parks in raw_by_source.items():
+            _save_json(parks, _RAW / f"{name}_{timestamp}.json", f"raw {name}")
 
-    # 2. Normalize
-    all_parks = step_normalize(raw_by_source)
+        # 2. Normalize
+        all_parks = step_normalize(raw_by_source)
 
     # 3. Geocode (forward: address→coords, reverse: coords→address)
     all_parks = step_geocode(all_parks, batch_size=geocode_batch)
@@ -287,6 +309,8 @@ def main():
                         help="Skip reverse geocoding step entirely.")
     parser.add_argument("--skip-fetch", action="store_true",
                         help="Load from latest raw files instead of re-fetching.")
+    parser.add_argument("--reprocess", action="store_true",
+                        help="Re-run geocode/enrich/dedup on parks_latest.json.")
     parser.add_argument("--verbose", "-v", action="store_true",
                         help="Enable debug logging.")
     args = parser.parse_args()
@@ -300,7 +324,8 @@ def main():
         dry_run=args.dry_run,
         refresh_boundaries=args.refresh_boundaries,
         geocode_batch=geocode_batch,
-        skip_fetch=args.skip_fetch)
+        skip_fetch=args.skip_fetch,
+        reprocess=args.reprocess)
 
 
 if __name__ == "__main__":
