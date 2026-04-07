@@ -70,6 +70,7 @@ SOURCES = {
     "mecklenburg_county": "sources.meckleburg_county",
     "wilmington":       "sources.wilmington",
     "new_hanover_county": "sources.new_hanover_county",
+    "triad":            "sources.triad",
 }
 
 

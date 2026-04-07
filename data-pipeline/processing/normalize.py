@@ -356,4 +356,5 @@ _SOURCE_HANDLERS = {
     "mecklenburg_county": _generic,
     "wilmington": _generic,
     "new_hanover_county": _generic,
+    "triad": _generic,
 }

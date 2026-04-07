@@ -188,16 +188,18 @@
 - [x] Nominatim rate limit recovery — persistent backoff state in `nominatim_backoff.json`, escalating delays across runs
 - [x] Geocode cache warming — `warm_cache.py` script runs `--skip-fetch --geocode-batch N` in rounds with pauses
 - [x] County name normalization — enrich.py appends " County" suffix to bare names ("Wake" → "Wake County")
-- [ ] Remaining Locations:
-    - [ ] Triad
+- [x] Remaining Locations:
+    - [x] Triad
 - [ ] Make sure all of the locations work/are built into the pipeline (normalization, geocoding, deduping, etc.)
 - [ ] OSM amenity enrichment for remaining unmapped child POI tags
 - [ ] Reverse geocode remaining ~2,000 OSM parks missing addresses
 - [ ] Update Sources to be the URLs
 - [ ] Update duplicates (e.g., Wilson's Mills Athletic Complex has three entries)
-- [ ] Google Places API?
-    - [Google Places API Overview](https://developers.google.com/maps/documentation/places/web-service/overview)
-    - [Google Maps Platform core services pricing list](https://developers.google.com/maps/billing-and-pricing/pricing#places-pricing)
+- [ ] Google Places API - add the max-date of complete google-places from the "raw" data folder into
+      the finalized datset (ammeneties, google reviews, locations, addresses, etc.); note there will need
+      to be a pre-processing step since it includes things like state/national parks, trampoline parks, etc.;
+      Also, it's good for google ratings, but make sure metadata reflects the date of the ratings + rating count.
+      There is a lot of rich information here that I had to pay to use, so make good use of it.
 
 ---
 
@@ -209,6 +211,9 @@
 - [x] Park detail panel / modal
 - [x] Search by name / location
 - [x] Is it mobile-friendly?
+- [ ] Reviews / ratings (from Google initially, we will incorporate in-app ratings/reviews and things like checking in or validating ammenedies or park locations later)
+- [ ] Is everything SEO-friendly?
+- [ ] Is everything Desktop + mobile friendly, and easily implemented into a mobile app (the end goal is a web + mobile app)?
 
 ---
 
