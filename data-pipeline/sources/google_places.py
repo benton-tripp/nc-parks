@@ -22,6 +22,7 @@ import json
 import logging
 import math
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -53,6 +54,48 @@ PAGE_SIZE = 20
 
 # Rate limiting — Google allows 600 QPM for Places API
 REQUEST_DELAY = 0.15  # seconds between requests
+
+# ---------------------------------------------------------------------------
+# Filtering — exclude non-NC and non-park entries when loading from raw data
+# ---------------------------------------------------------------------------
+
+# Google types that indicate the place is NOT an outdoor park/playground
+_EXCLUDE_GOOGLE_TYPES = {"indoor_playground", "cemetery"}
+
+# Name patterns for commercial entertainment, not outdoor parks
+_COMMERCIAL_RE = re.compile(
+    r"\btrampoline\b"
+    r"|\bsky\s*zone\b"
+    r"|\burban\s*air\b"
+    r"|\bflip\s*n\s*fly\b"
+    r"|\bjumpmasters?\b"
+    r"|\bbumper\s*jumpers?\b"
+    r"|\bplay\s*cafe\b"
+    r"|\bfun\s*city\s*indoor\b"
+    r"|\bgo[\s-]?karts?\b"
+    r"|\blaser\s*tag\b"
+    r"|\bpaintball\b"
+    r"|\bescape\s*room\b"
+    r"|\bbowling\b"
+    r"|\bchuck\s*e\.?\s*cheese\b"
+    r"|\bbeat\s*the\s*bomb\b"
+    r"|\bvineyard\b"
+    r"|\bwinery\b"
+    r"|\bjumping\s*pillow\b",
+    re.IGNORECASE,
+)
+
+
+def _is_excluded(park: dict) -> bool:
+    """Return True if this entry should be excluded from the dataset."""
+    types = set(park.get("extras", {}).get("google_types", []))
+    name = park.get("name", "")
+
+    if types & _EXCLUDE_GOOGLE_TYPES:
+        return True
+    if _COMMERCIAL_RE.search(name):
+        return True
+    return False
 
 
 def _load_api_key() -> str:
@@ -206,8 +249,72 @@ def search_tile(
 # ---------------------------------------------------------------------------
 
 
-def fetch(pro: bool = False) -> list[dict]:
-    """Discover parks & playgrounds across NC via tiled Text Search.
+def fetch() -> list[dict]:
+    """Load latest enriched Google Places data from data/raw/, filtered for NC.
+
+    Loads the most recent ``google_places_*.json`` file (produced by a prior
+    ``discover()`` + ``enrich()`` run) and applies filtering to remove:
+
+    * Non-NC entries (by address)
+    * Commercial entertainment (trampoline parks, indoor playgrounds, etc.)
+    * Cemeteries and other non-park places
+
+    Each record's ``extras`` dict is stamped with ``google_data_date`` — the
+    ISO date when the API data was collected — so downstream consumers know
+    how fresh ratings and review counts are.
+
+    Returns a list of park dicts ready for the pipeline.
+    """
+    src = _find_latest_file()
+    if not src:
+        logger.warning("No Google Places raw data found in data/raw/ — "
+                       "run discovery first: python -m data-pipeline.sources.google_places")
+        return []
+
+    all_parks = json.loads(src.read_text(encoding="utf-8"))
+    logger.info("Loaded %d entries from %s", len(all_parks), src.name)
+
+    # Extract data date from filename: google_places_20260406T153331.json
+    m = re.search(r"google_places_(\d{8})T\d{6}", src.name)
+    data_date_iso = (
+        f"{m.group(1)[:4]}-{m.group(1)[4:6]}-{m.group(1)[6:8]}" if m else None
+    )
+
+    filtered = []
+    excluded_state = 0
+    excluded_type = 0
+
+    for p in all_parks:
+        # 1. NC only (by address)
+        addr = p.get("address") or ""
+        if ", NC " not in addr:
+            excluded_state += 1
+            continue
+
+        # 2. Exclude commercial entertainment and non-parks
+        if _is_excluded(p):
+            excluded_type += 1
+            continue
+
+        # 3. Stamp rating-date metadata
+        extras = p.get("extras", {})
+        extras["google_data_date"] = data_date_iso
+        p["extras"] = extras
+
+        filtered.append(p)
+
+    logger.info(
+        "Filtered: %d NC parks (excluded %d non-NC, %d non-park)",
+        len(filtered), excluded_state, excluded_type,
+    )
+    return filtered
+
+
+def discover(pro: bool = False) -> list[dict]:
+    """Discover parks & playgrounds across NC via tiled Text Search (API call).
+
+    **WARNING**: This calls the Google Places API and costs money.
+    Use ``fetch()`` to load from existing raw data instead.
 
     Args:
         pro: If True, request Pro-tier fields (name, address, location, etc.)
@@ -529,7 +636,7 @@ if __name__ == "__main__":
         print(f"\nSaved {len(results)} results → {out_path}")
         sys.exit(0)
 
-    results = fetch(pro=args.pro)
+    results = discover(pro=args.pro)
 
     # ── Save to disk FIRST ──
     ts = datetime.now().strftime("%Y%m%dT%H%M%S")

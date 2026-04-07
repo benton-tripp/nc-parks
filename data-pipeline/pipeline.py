@@ -71,6 +71,7 @@ SOURCES = {
     "wilmington":       "sources.wilmington",
     "new_hanover_county": "sources.new_hanover_county",
     "triad":            "sources.triad",
+    "google_places":    "sources.google_places",
 }
 
 
@@ -295,7 +296,7 @@ def _print_summary(parks: list[dict]):
     """Print a quick summary table."""
     from collections import Counter
     by_source = Counter(p["source"] for p in parks)
-    by_county = Counter(p.get("county", "Unknown") for p in parks)
+    by_county = Counter(p.get("county") or "Unknown" for p in parks)
 
     print(f"\n{'='*60}")
     print(f"  Pipeline complete: {len(parks)} parks")

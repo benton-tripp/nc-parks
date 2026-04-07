@@ -9,10 +9,12 @@ Usage (from project root):
 import argparse
 import json
 from pathlib import Path
+from urllib.parse import quote_plus
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.datavalidation import DataValidation
 
 _ROOT = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = _ROOT / "data" / "final"
@@ -39,12 +41,16 @@ def _pretty(name: str) -> str:
 def export(input_path: Path, output_path: Path):
     parks = json.loads(input_path.read_text(encoding="utf-8"))
 
+    # Sort by latitude then longitude so nearby parks are adjacent
+    parks.sort(key=lambda p: (p.get("latitude") or 0, p.get("longitude") or 0))
+
     wb = Workbook()
     ws = wb.active
     ws.title = "Parks"
 
     # ---- Header row ----
     base_headers = [
+        "Verified", "Satellite",
         "Name", "City", "County", "State", "Address",
         "Latitude", "Longitude", "Source", "Phone", "URL",
         "Google Maps", "Apple Maps",
@@ -76,10 +82,14 @@ def export(input_path: Path, output_path: Path):
 
         google_url = (f"https://www.google.com/maps/search/?api=1"
                       f"&query={lat},{lon}") if lat and lon else ""
+        satellite_url = (f"https://www.google.com/maps/place/{quote_plus(name)}"
+                         f"/@{lat},{lon},100m/data=!3m1!1e3") if lat and lon and name else ""
         apple_url = (f"https://maps.apple.com/?ll={lat},{lon}"
                      f"&q={name}") if lat and lon else ""
 
         base_values = [
+            "",  # Verified — filled by dropdown
+            satellite_url,
             name,
             park.get("city") or "",
             park.get("county") or "",
@@ -102,6 +112,14 @@ def export(input_path: Path, output_path: Path):
             cell.font = body_font
             cell.alignment = body_align
             cell.border = thin_border
+
+        # Format Satellite column as clickable hyperlink
+        sat_col = base_headers.index("Satellite") + 1
+        if satellite_url:
+            cell = ws.cell(row=row_idx, column=sat_col)
+            cell.hyperlink = satellite_url
+            cell.value = "Open"
+            cell.font = link_font
 
         # Format URL column as clickable hyperlink
         url_col = base_headers.index("URL") + 1
@@ -134,8 +152,17 @@ def export(input_path: Path, output_path: Path):
                 cell.font = check_font
                 cell.alignment = Alignment(horizontal="center", vertical="center")
 
+    # ---- Verified dropdown (Yes/No) ----
+    dv = DataValidation(type="list", formula1='"Yes,No"', allow_blank=True)
+    dv.prompt = "Select Yes or No"
+    dv.promptTitle = "Verified"
+    verified_col = get_column_letter(base_headers.index("Verified") + 1)
+    dv.add(f"{verified_col}2:{verified_col}{len(parks) + 1}")
+    ws.add_data_validation(dv)
+
     # ---- Column widths ----
     col_widths = {
+        "Verified": 10, "Satellite": 10,
         "Name": 30, "City": 16, "County": 18, "State": 6,
         "Address": 35, "Latitude": 12, "Longitude": 12,
         "Source": 20, "Phone": 16, "URL": 30,

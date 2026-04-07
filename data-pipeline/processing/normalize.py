@@ -329,6 +329,41 @@ def _playground_explorers(raw: dict) -> dict:
     }
 
 
+def _google_places(raw: dict) -> dict | None:
+    """Google Places — preserve rich extras (ratings, maps URI, types, data date).
+
+    Parses city from the Google-formatted address
+    (``"street, city, ST ZIP, USA"``).
+    """
+    # Parse city from formatted address
+    city = None
+    addr = raw.get("address") or ""
+    parts = [p.strip() for p in addr.split(",")]
+    # Google format: "123 Main St, Raleigh, NC 27601, USA"
+    #   parts[-3] = "Raleigh"
+    if len(parts) >= 4:
+        candidate = parts[-3]
+        # Sanity: city names are alphabetic (no digits)
+        if candidate and not any(c.isdigit() for c in candidate):
+            city = candidate
+
+    return {
+        "source": "google_places",
+        "source_id": raw.get("source_id", ""),
+        "name": raw.get("name"),
+        "latitude": raw.get("latitude"),
+        "longitude": raw.get("longitude"),
+        "address": raw.get("address"),
+        "city": city,
+        "county": raw.get("county"),
+        "state": "NC",
+        "phone": raw.get("phone"),
+        "url": raw.get("url"),
+        "amenities": raw.get("amenities", {}),
+        "extras": raw.get("extras", {}),
+    }
+
+
 # Register handlers per source name
 _SOURCE_HANDLERS = {
     "wake_county": _wake_county,
@@ -338,6 +373,7 @@ _SOURCE_HANDLERS = {
     "greensboro": _greensboro,
     "high_point": _high_point,
     "playground_explorers": _playground_explorers,
+    "google_places": _google_places,
     "southern_pines": _generic,
     "nash_county": _generic,
     "kill_devil_hills": _generic,
