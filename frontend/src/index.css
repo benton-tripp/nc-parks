@@ -8,3 +8,24 @@ body {
     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
     Arial, sans-serif;
 }
+
+/* MapLibre hover popup */
+.park-hover-popup .maplibregl-popup-content {
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.park-hover-popup .maplibregl-popup-tip {
+  border-top-color: #fff;
+}
+.popup-county {
+  color: #6b7280;
+  font-size: 11px;
+}
+.popup-rating {
+  color: #f59e0b;
+  font-size: 12px;
+  font-weight: 600;
+}

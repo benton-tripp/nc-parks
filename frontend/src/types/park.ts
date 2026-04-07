@@ -98,4 +98,63 @@ export const AMENITY_LABELS: Record<string, string> = {
   sand_volleyball: "Sand Volleyball",
   bmx_track: "BMX Track",
   open_field: "Open Field",
+  carousel: "Carousel",
+  wheelchair_accessible: "Wheelchair Accessible",
+  horseshoes: "Horseshoes",
+  volleyball: "Volleyball",
+  bocce: "Bocce",
+  pickleball: "Pickleball",
+  shuffleboard: "Shuffleboard",
+  outdoor_fitness: "Outdoor Fitness",
+  amphitheater: "Amphitheater",
+  nature_center: "Nature Center",
+  soccer: "Soccer",
+  baseball: "Baseball",
+  softball: "Softball",
+  football: "Football",
+  lacrosse: "Lacrosse",
+};
+
+/** Format an amenity key into a display label with consistent title case. */
+export function formatAmenityLabel(key: string): string {
+  return (
+    AMENITY_LABELS[key] ??
+    key
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (c) => c.toUpperCase())
+  );
+}
+
+/** Human-readable source display names. */
+export const SOURCE_LABELS: Record<string, string> = {
+  wake_county: "Wake County",
+  johnston_county: "Johnston County",
+  osm: "OpenStreetMap",
+  alamance_county: "Alamance County",
+  greensboro: "Greensboro",
+  high_point: "High Point",
+  playground_explorers: "Playground Explorers",
+  southern_pines: "Southern Pines",
+  nash_county: "Nash County",
+  kill_devil_hills: "Kill Devil Hills",
+  google_places: "Google",
+  triad: "NC Triad Outdoors",
+  wilson: "Wilson",
+};
+
+/** URLs for each data source (links to their portal / website). */
+export const SOURCE_URLS: Record<string, string> = {
+  wake_county: "https://data-wake.opendata.arcgis.com/",
+  johnston_county: "https://www.johnstoncountync.org/parks-and-recreation/",
+  osm: "https://www.openstreetmap.org/",
+  alamance_county: "https://www.alamance-nc.com/recreation/",
+  greensboro: "https://www.greensboro-nc.gov/departments/parks-recreation",
+  high_point: "https://www.highpointnc.gov/656/Parks-Facilities",
+  playground_explorers: "https://playgroundexplorers.com/",
+  southern_pines: "https://www.southernpines.net/",
+  nash_county: "https://www.nash-nc.com/",
+  kill_devil_hills: "https://www.kdhnc.com/",
+  google_places: "https://maps.google.com/",
+  triad: "https://nctriadoutdoors.com/",
+  wilson: "https://www.wilsonnc.org/",
 };

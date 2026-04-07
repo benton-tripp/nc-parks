@@ -7,6 +7,7 @@ interface Props {
   parks: Park[];
   onSelectPark: (park: Park) => void;
   selectedPark: Park | null;
+  onBoundsChange?: (bounds: [number, number, number, number]) => void;
 }
 
 const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY ?? "";
@@ -31,18 +32,22 @@ function toGeoJSON(
       properties: {
         index: i,
         name: p.name,
+        county: p.county ?? "",
+        google_rating: (p.extras.google_rating as number) ?? 0,
       },
     })),
   };
 }
 
-export default function ParkMap({ parks, onSelectPark, selectedPark }: Props) {
+export default function ParkMap({ parks, onSelectPark, selectedPark, onBoundsChange }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const parksRef = useRef(parks);
   parksRef.current = parks;
   const onSelectRef = useRef(onSelectPark);
   onSelectRef.current = onSelectPark;
+  const onBoundsChangeRef = useRef(onBoundsChange);
+  onBoundsChangeRef.current = onBoundsChange;
 
   // Initialize map (runs once)
   useEffect(() => {
@@ -137,6 +142,20 @@ export default function ParkMap({ parks, onSelectPark, selectedPark }: Props) {
         },
       });
 
+      // Selected park highlight (rendered on top)
+      map.addLayer({
+        id: "park-selected",
+        type: "circle",
+        source: "parks",
+        filter: ["==", ["get", "index"], -1],
+        paint: {
+          "circle-color": "#2563eb",
+          "circle-radius": 10,
+          "circle-stroke-width": 3,
+          "circle-stroke-color": "#ffffff",
+        },
+      });
+
       // Click cluster → zoom in
       map.on("click", "clusters", async (e) => {
         const features = map.queryRenderedFeatures(e.point, {
@@ -173,12 +192,55 @@ export default function ParkMap({ parks, onSelectPark, selectedPark }: Props) {
       map.on("mouseleave", "clusters", () => {
         map.getCanvas().style.cursor = "";
       });
-      map.on("mouseenter", "park-points", () => {
+
+      // Hover popup for park points
+      const popup = new maplibregl.Popup({
+        closeButton: false,
+        closeOnClick: false,
+        offset: 12,
+        className: "park-hover-popup",
+      });
+
+      map.on("mouseenter", "park-points", (e) => {
         map.getCanvas().style.cursor = "pointer";
+        const features = map.queryRenderedFeatures(e.point, {
+          layers: ["park-points"],
+        });
+        if (!features.length) return;
+        const f = features[0];
+        const coords = (f.geometry as GeoJSON.Point).coordinates.slice() as [
+          number,
+          number,
+        ];
+        const name = f.properties.name as string;
+        const county = f.properties.county as string;
+        const rating = f.properties.google_rating as number;
+
+        let html = `<strong>${name}</strong>`;
+        if (county) html += `<br/><span class="popup-county">${county}</span>`;
+        if (rating)
+          html += `<br/><span class="popup-rating">★ ${rating.toFixed(1)}</span>`;
+
+        popup.setLngLat(coords).setHTML(html).addTo(map);
       });
       map.on("mouseleave", "park-points", () => {
         map.getCanvas().style.cursor = "";
+        popup.remove();
       });
+
+      // Report bounds on load and every move
+      const reportBounds = () => {
+        if (!onBoundsChangeRef.current) return;
+        const b = map.getBounds();
+        onBoundsChangeRef.current([
+          b.getWest(),
+          b.getSouth(),
+          b.getEast(),
+          b.getNorth(),
+        ]);
+      };
+      map.on("moveend", reportBounds);
+      reportBounds();
     });
 
     mapRef.current = map;
@@ -197,14 +259,32 @@ export default function ParkMap({ parks, onSelectPark, selectedPark }: Props) {
     }
   }, [parks]);
 
-  // Fly to selected park
+  // Fly to selected park + highlight marker
   useEffect(() => {
-    if (!selectedPark || !mapRef.current) return;
-    mapRef.current.flyTo({
-      center: [selectedPark.longitude, selectedPark.latitude],
-      zoom: Math.max(mapRef.current.getZoom(), 14),
-      duration: 800,
-    });
+    const map = mapRef.current;
+    if (!map) return;
+
+    // Find the index of the selected park in the current parks array
+    const idx = selectedPark
+      ? parksRef.current.findIndex(
+          (p) =>
+            p.source === selectedPark.source &&
+            p.source_id === selectedPark.source_id,
+        )
+      : -1;
+
+    // Update highlight layer filter
+    if (map.getLayer("park-selected")) {
+      map.setFilter("park-selected", ["==", ["get", "index"], idx]);
+    }
+
+    if (selectedPark) {
+      map.flyTo({
+        center: [selectedPark.longitude, selectedPark.latitude],
+        zoom: Math.max(map.getZoom(), 14),
+        duration: 800,
+      });
+    }
   }, [selectedPark]);
 
   return <div ref={containerRef} className="h-full w-full" />;

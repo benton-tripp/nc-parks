@@ -103,6 +103,19 @@ def _merge_parks(primary: dict, duplicate: dict) -> dict:
         if not primary.get(field) and duplicate.get(field):
             primary[field] = duplicate[field]
 
+    # Carry over Google Places metadata (ratings, maps URI, data date)
+    # so that parks from any source can display Google review scores.
+    _GOOGLE_EXTRAS = (
+        "google_rating", "google_rating_count", "google_maps_uri",
+        "google_place_id", "google_types", "google_data_date",
+    )
+    primary_extras = primary.get("extras", {})
+    dup_extras = duplicate.get("extras", {})
+    for key in _GOOGLE_EXTRAS:
+        if key not in primary_extras and key in dup_extras:
+            primary_extras[key] = dup_extras[key]
+    primary["extras"] = primary_extras
+
     return primary
 
 

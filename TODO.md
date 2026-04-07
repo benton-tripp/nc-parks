@@ -188,18 +188,20 @@
 - [x] Nominatim rate limit recovery — persistent backoff state in `nominatim_backoff.json`, escalating delays across runs
 - [x] Geocode cache warming — `warm_cache.py` script runs `--skip-fetch --geocode-batch N` in rounds with pauses
 - [x] County name normalization — enrich.py appends " County" suffix to bare names ("Wake" → "Wake County")
-- [x] Remaining Locations:
-    - [x] Triad
+- [x] Remaining Locations
+- [x] Google Places API — Integrated into pipeline: `fetch()` loads latest raw file from `data/raw/`,
+      filters to NC-only (2,931 of 3,336), excludes commercial entertainment (trampoline parks, indoor
+      playgrounds, vineyards, etc. — 93 excluded), stamps `google_data_date` in extras. Registered in
+      `pipeline.py` SOURCES + `normalize.py` _SOURCE_HANDLERS with city parsing from Google address format.
+      Extras preserved: `google_rating`, `google_rating_count`, `google_maps_uri`, `google_place_id`,
+      `google_types`, `google_data_date`. Frontend shows star ratings + review count in park detail panel.
+      **Note:** Run full pipeline with all sources to merge google_places into the combined dataset.
+- [ ] Get county field in the data using coordinates + county boundaries data (currently just getting from address, sometimes wrong or missing)
 - [ ] Make sure all of the locations work/are built into the pipeline (normalization, geocoding, deduping, etc.)
 - [ ] OSM amenity enrichment for remaining unmapped child POI tags
 - [ ] Reverse geocode remaining ~2,000 OSM parks missing addresses
 - [ ] Update Sources to be the URLs
 - [ ] Update duplicates (e.g., Wilson's Mills Athletic Complex has three entries)
-- [ ] Google Places API - add the max-date of complete google-places from the "raw" data folder into
-      the finalized datset (ammeneties, google reviews, locations, addresses, etc.); note there will need
-      to be a pre-processing step since it includes things like state/national parks, trampoline parks, etc.;
-      Also, it's good for google ratings, but make sure metadata reflects the date of the ratings + rating count.
-      There is a lot of rich information here that I had to pay to use, so make good use of it.
 
 ---
 
@@ -211,10 +213,25 @@
 - [x] Park detail panel / modal
 - [x] Search by name / location
 - [x] Is it mobile-friendly?
-- [ ] Reviews / ratings (from Google initially, we will incorporate in-app ratings/reviews and things like checking in or validating ammenedies or park locations later)
-- [ ] Is everything SEO-friendly?
-- [ ] Is everything Desktop + mobile friendly, and easily implemented into a mobile app (the end goal is a web + mobile app)?
-
+- [x] Reviews / ratings — Google ratings (stars + review count + data date) displayed in ParkDetail panel
+      via `StarRating` component. Reads from `extras.google_rating`, `extras.google_rating_count`,
+      `extras.google_data_date`. Links to Google Maps page when available. In-app ratings/reviews
+      will come later with backend auth.
+- [x] SEO foundations — Added: meta description, theme-color, canonical URL, Open Graph tags (og:title,
+      og:description, og:type, og:url), Twitter Card tags, apple-mobile-web-app meta tags, web app manifest.
+      **Limitation:** SPA with client-side rendering only — search engines with JS rendering (Google) will
+      index fine, but pre-rendering/SSG (e.g. `vite-plugin-ssr` or Next.js migration) would improve
+      crawlability for Bing/social link previews. Consider adding `react-helmet-async` for per-park
+      meta tags if individual park pages are added.
+- [x] Mobile + app-agnostic — Already responsive (mobile bottom sheet, drawer filters, touch-friendly).
+      Added PWA manifest (`manifest.json` with standalone display mode, theme color, icon slots).
+      **To complete PWA:** Add actual icon files (`public/icons/icon-192.png`, `icon-512.png`), add
+      service worker via `vite-plugin-pwa` for offline caching. Framework (React + Vite) is compatible
+      with Capacitor/Expo wrapping for native iOS/Android apps.
+- [x] List View (like Zillow, e.g., search in area, sort by distance, etc.)
+- [x] Sources as actual links, if you click +X more it shows all
+- [x] Use Consistent Capitalization for ammenedies
+- [X] Highlight selected park (different color maybe?)
 ---
 
 ## Backend (AWS)
