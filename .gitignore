@@ -46,6 +46,7 @@ data/
 !data/proessed/.gitkeep
 !data/raw/.gitkeep
 !data/reference/.gitkeep
+!data/final/google_places*.json
 
 # Misc
 *.bak

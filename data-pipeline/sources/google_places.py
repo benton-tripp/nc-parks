@@ -1,4 +1,7 @@
 """
+DO NOT RUN THIS FREQUENTLY — Google Places API has strict rate limits and costs.
+Running the API Place Details Enterprise + Text Search Enterprise costs ~$71 overall.
+-----
 Google Places API (New) — tiled discovery of parks & playgrounds across NC.
 
 Uses Text Search with IDs-only field mask (FREE tier) to discover place IDs,
