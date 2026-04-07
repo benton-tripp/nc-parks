@@ -228,20 +228,34 @@ export default function ParkMap({ parks, onSelectPark, selectedPark, onBoundsCha
         popup.remove();
       });
 
-      // Report bounds on load and every move
-      const reportBounds = () => {
-        if (!onBoundsChangeRef.current) return;
-        const b = map.getBounds();
-        onBoundsChangeRef.current([
-          b.getWest(),
-          b.getSouth(),
-          b.getEast(),
-          b.getNorth(),
-        ]);
-      };
-      map.on("moveend", reportBounds);
+    });
+
+    // Report bounds — registered outside "load" so dragging works immediately
+    const reportBounds = () => {
+      if (!onBoundsChangeRef.current) return;
+      const b = map.getBounds();
+      onBoundsChangeRef.current([
+        b.getWest(),
+        b.getSouth(),
+        b.getEast(),
+        b.getNorth(),
+      ]);
+    };
+    let rafId: number | null = null;
+    map.on("move", () => {
+      if (rafId === null) {
+        rafId = requestAnimationFrame(() => {
+          rafId = null;
+          reportBounds();
+        });
+      }
+    });
+    map.on("moveend", () => {
+      if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
       reportBounds();
     });
+    // Initial bounds
+    reportBounds();
 
     mapRef.current = map;
     return () => map.remove();

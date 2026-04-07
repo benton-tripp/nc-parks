@@ -1,6 +1,7 @@
 export interface Park {
   source: string;
   source_id: string;
+  source_url?: string;
   name: string;
   latitude: number;
   longitude: number;
@@ -140,6 +141,20 @@ export const SOURCE_LABELS: Record<string, string> = {
   google_places: "Google",
   triad: "NC Triad Outdoors",
   wilson: "Wilson",
+  graham: "Graham",
+  manteo: "Manteo",
+  elizabeth_city: "Elizabeth City",
+  new_bern: "New Bern",
+  fayetteville: "Fayetteville",
+  goldsboro: "Goldsboro",
+  henderson_county: "Henderson County",
+  durham: "Durham",
+  lexington: "Lexington",
+  asheville: "Asheville",
+  charlotte: "Charlotte",
+  mecklenburg_county: "Mecklenburg County",
+  wilmington: "Wilmington",
+  new_hanover_county: "New Hanover County",
 };
 
 /** URLs for each data source (links to their portal / website). */

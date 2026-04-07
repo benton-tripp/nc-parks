@@ -22,8 +22,8 @@ logger = logging.getLogger(__name__)
 # because large parks have centroids hundreds of metres apart across sources.
 _DISTANCE_TIERS = [
     (0.90, 500),   # near-exact name → 500m (large park, different centroids)
-    (0.75, 300),   # strong match     → 300m
-    (0.60, 150),   # moderate match   → 150m
+    (0.80, 300),   # strong match     → 300m
+    (0.70, 100),   # moderate match   → 100m
 ]
 
 # Dog park absorption: merge standalone dog parks into a nearby parent park
@@ -46,6 +46,29 @@ def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 _STRIP_WORDS = {"park", "playground", "memorial", "community", "city",
                 "town", "county", "state", "recreation", "area", "center",
                 "centre", "the", "of", "at"}
+
+# Facility-type keywords — when two nearby parks have DIFFERENT explicit
+# facility types, they are co-located but distinct (e.g. a dog park next
+# to a playground inside the same larger park).  Block merging in that case.
+_FACILITY_TYPES = {
+    "dog_park":    {"dog park"},
+    "playground":  {"playground"},
+    "skatepark":   {"skatepark", "skate park"},
+    "trail":       {"trail", "greenway"},
+    "dam":         {"dam"},
+    "paddle":      {"paddle access"},
+    "overlook":    {"overlook"},
+}
+
+
+def _facility_type(name: str) -> str | None:
+    """Detect the facility type from a park name, if any."""
+    low = name.lower()
+    for ftype, keywords in _FACILITY_TYPES.items():
+        for kw in keywords:
+            if kw in low:
+                return ftype
+    return None
 
 
 def _core_name(name: str) -> str:
@@ -179,6 +202,13 @@ def _is_duplicate(park_a: dict, park_b: dict) -> bool:
     # Can't compare distance without coordinates
     if (park_a.get("latitude") is None or park_a.get("longitude") is None or
             park_b.get("latitude") is None or park_b.get("longitude") is None):
+        return False
+
+    # Different facility types at the same location → not duplicates
+    # e.g. "Beech Mountain Dog Park" ≠ "Beech Mountain Playground"
+    ft_a = _facility_type(park_a["name"])
+    ft_b = _facility_type(park_b["name"])
+    if ft_a and ft_b and ft_a != ft_b:
         return False
 
     dist = _haversine_m(

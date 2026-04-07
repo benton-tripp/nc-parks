@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback } from "react";
 import Header from "../components/layout/Header";
 import FilterPanel from "../components/filters/FilterPanel";
 import ParkMap from "../components/map/ParkMap";
@@ -34,19 +34,6 @@ export default function MapPage() {
   const handleDeselectPark = useCallback(() => {
     setSelectedPark(null);
   }, []);
-
-  // Filter to parks visible in the current map viewport
-  const visibleParks = useMemo(() => {
-    if (!mapBounds) return filtered;
-    const [west, south, east, north] = mapBounds;
-    return filtered.filter(
-      (p) =>
-        p.longitude >= west &&
-        p.longitude <= east &&
-        p.latitude >= south &&
-        p.latitude <= north,
-    );
-  }, [filtered, mapBounds]);
 
   if (error) {
     return (
@@ -123,7 +110,8 @@ export default function MapPage() {
 
         {/* List panel — always visible on desktop, toggleable on mobile */}
         <ParkListPanel
-          parks={visibleParks}
+          parks={filtered}
+          mapBounds={mapBounds}
           selectedPark={selectedPark}
           onSelectPark={handleSelectPark}
           onDeselectPark={handleDeselectPark}

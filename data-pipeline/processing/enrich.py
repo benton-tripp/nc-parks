@@ -1,9 +1,11 @@
 """Enrich parks with county (and optionally city) via point-in-polygon.
 
 Uses the county boundaries GeoJSON produced by
-``sources.county_boundaries`` to assign a county to every park that
-doesn't already have one.  Also computes a geohash for downstream
-spatial queries.
+``sources.county_boundaries`` to assign a county to every park using
+point-in-polygon lookup (always overwrites any existing value).
+Falls back to nearest-county within ~2 km for coastal/waterfront parks
+whose coordinates land just offshore.  Also computes a geohash for
+downstream spatial queries.
 """
 
 from __future__ import annotations
@@ -97,6 +99,10 @@ def enrich(parks: list[dict], boundaries_path: Path | str | None = None) -> list
     geometries = [geom for _, geom in counties]
 
     enriched_count = 0
+    nearest_count = 0
+    # Max distance (degrees) for nearest-county fallback — ~2 km at NC latitudes
+    _NEAREST_MAX_DEG = 0.02
+
     for park in parks:
         # Always add geohash (if coords available)
         if park.get("latitude") is not None and park.get("longitude") is not None:
@@ -105,24 +111,36 @@ def enrich(parks: list[dict], boundaries_path: Path | str | None = None) -> list
             logger.debug("Skipping enrichment for %s — no coordinates", park.get("name"))
             continue
 
-        # Skip county lookup if already known
-        if park.get("county"):
-            continue
-
+        # Always assign county from boundaries (overwrite any existing value)
         point = Point(park["longitude"], park["latitude"])
         result_idx = tree.query(point)
 
+        matched = False
         for idx in result_idx:
             geom = geometries[idx]
             if geom.contains(point):
                 park["county"] = geom_to_county[id(geom)]
                 enriched_count += 1
+                matched = True
                 break
-        else:
-            logger.debug("No county found for %s at (%.4f, %.4f)",
-                         park["name"], park["latitude"], park["longitude"])
 
-    logger.info("Enriched %d parks with county data", enriched_count)
+        if not matched:
+            # Nearest-county fallback for coastal/waterfront parks whose
+            # coords fall just outside the land polygon (e.g. docks, piers).
+            nearest_idx = tree.nearest(point)
+            nearest_geom = geometries[nearest_idx]
+            dist = point.distance(nearest_geom)
+            if dist <= _NEAREST_MAX_DEG:
+                park["county"] = geom_to_county[id(nearest_geom)]
+                nearest_count += 1
+                logger.debug("Nearest-county fallback for %s (%.4f deg) → %s",
+                             park["name"], dist, park["county"])
+            else:
+                logger.debug("No county found for %s at (%.4f, %.4f) — nearest %.4f deg away",
+                             park["name"], park["latitude"], park["longitude"], dist)
+
+    logger.info("Enriched %d parks with county data (%d via nearest-county fallback)",
+                enriched_count + nearest_count, nearest_count)
 
     # ── Normalise county names ────────────────────────────────────────
     # Some sources set bare names like "Wake" instead of "Wake County".

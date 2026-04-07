@@ -10,6 +10,7 @@ Canonical park schema
 {
     "source":     str,          # e.g. "wake_county", "osm", "charlotte"
     "source_id":  str,          # unique ID within that source
+    "source_url": str | None,   # canonical URL for the data source
     "name":       str,
     "latitude":   float,
     "longitude":  float,
@@ -52,6 +53,37 @@ CANONICAL_AMENITIES = {
     "theater", "library", "museum", "live_animals",
 }
 
+# Canonical source URLs for attribution — the homepage / portal for each data source.
+_SOURCE_URLS: dict[str, str] = {
+    "wake_county":          "https://data-wake.opendata.arcgis.com/",
+    "johnston_county":      "https://www.johnstoncountync.org/parks-and-recreation/",
+    "osm":                  "https://www.openstreetmap.org/",
+    "alamance_county":      "https://www.alamance-nc.com/recreation/",
+    "greensboro":           "https://www.greensboro-nc.gov/departments/parks-recreation",
+    "high_point":           "https://www.highpointnc.gov/656/Parks-Facilities",
+    "playground_explorers": "https://playgroundexplorers.com/",
+    "southern_pines":       "https://www.southernpines.net/",
+    "nash_county":          "https://www.nash-nc.com/",
+    "kill_devil_hills":     "https://www.kdhnc.com/",
+    "google_places":        "https://maps.google.com/",
+    "triad":                "https://nctriadoutdoors.com/",
+    "wilson":               "https://www.wilsonnc.org/",
+    "graham":               "https://www.cityofgraham.com/",
+    "manteo":               "https://www.manteonc.gov/",
+    "elizabeth_city":       "https://www.cityofec.com/",
+    "new_bern":             "https://www.newbernnc.gov/",
+    "fayetteville":         "https://www.fayettevillenc.gov/",
+    "goldsboro":            "https://www.goldsboroparksandrec.com/",
+    "henderson_county":     "https://www.hendersoncountync.gov/recreation/",
+    "durham":               "https://www.dprplaymore.org/",
+    "lexington":            "https://www.lexingtonnc.gov/",
+    "asheville":            "https://www.ashevillenc.gov/",
+    "charlotte":            "https://parkandrec.mecknc.gov/",
+    "mecklenburg_county":   "https://parkandrec.mecknc.gov/",
+    "wilmington":           "https://www.wilmingtonnc.gov/",
+    "new_hanover_county":   "https://www.nhcgov.com/",
+}
+
 
 def normalize(parks: list[dict], source_name: str) -> list[dict]:
     """Normalise a batch of raw parks into canonical form.
@@ -90,9 +122,18 @@ def normalize(parks: list[dict], source_name: str) -> list[dict]:
         park.setdefault("state", "NC")
         park.setdefault("extras", {})
 
+        # Stamp canonical source URL for attribution
+        if source_name in _SOURCE_URLS:
+            park["source_url"] = _SOURCE_URLS[source_name]
+
         if not park.get("name"):
             logger.warning("Dropping park with missing name: %s", park)
             continue
+
+        # Treat 0,0 as missing (no NC park is at lat=0, lon=0)
+        if park.get("latitude") == 0.0 and park.get("longitude") == 0.0:
+            park["latitude"] = None
+            park["longitude"] = None
 
         # Parks need either coordinates or an address (geocoder can resolve later)
         if park.get("latitude") is None and not park.get("address"):

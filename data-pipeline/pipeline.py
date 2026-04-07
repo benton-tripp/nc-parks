@@ -288,6 +288,13 @@ def run(source_names: list[str] | None = None,
     latest = _FINAL / "parks_latest.json"
     _save_json(final_parks, latest, "latest")
 
+    # Copy to frontend public dir so the dev server / build picks it up
+    frontend_dest = _ROOT.parent / "frontend" / "public" / "data" / "parks_latest.json"
+    if frontend_dest.parent.exists():
+        import shutil
+        shutil.copy2(latest, frontend_dest)
+        logger.info("Copied parks_latest.json → %s", frontend_dest)
+
     _print_summary(final_parks)
     return final_parks
 

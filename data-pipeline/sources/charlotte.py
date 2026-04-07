@@ -84,10 +84,17 @@ def fetch() -> list[dict]:
         lat = geom.get("y")
         lon = geom.get("x")
 
-        source_id = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+        base_id = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+        source_id = f"charlotte_{base_id}"
+        seen_ids = {p["source_id"] for p in parks}
+        if source_id in seen_ids:
+            suffix = 2
+            while f"{source_id}_{suffix}" in seen_ids:
+                suffix += 1
+            source_id = f"{source_id}_{suffix}"
         parks.append({
             "source": "charlotte",
-            "source_id": f"charlotte_{source_id}",
+            "source_id": source_id,
             "name": name,
             "latitude": lat,
             "longitude": lon,

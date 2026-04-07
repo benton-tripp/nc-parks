@@ -196,12 +196,43 @@
       Extras preserved: `google_rating`, `google_rating_count`, `google_maps_uri`, `google_place_id`,
       `google_types`, `google_data_date`. Frontend shows star ratings + review count in park detail panel.
       **Note:** Run full pipeline with all sources to merge google_places into the combined dataset.
-- [ ] Get county field in the data using coordinates + county boundaries data (currently just getting from address, sometimes wrong or missing)
-- [ ] Make sure all of the locations work/are built into the pipeline (normalization, geocoding, deduping, etc.)
-- [ ] OSM amenity enrichment for remaining unmapped child POI tags
-- [ ] Reverse geocode remaining ~2,000 OSM parks missing addresses
-- [ ] Update Sources to be the URLs
-- [ ] Update duplicates (e.g., Wilson's Mills Athletic Complex has three entries)
+- [x] CHECK: Make sure if I re-run the full pipeline it never triggers the Google Places API; I want that to just be a standalone function, where any usage of that module in the pipeline is just using the already populated data.
+      **VERIFIED:** Pipeline only calls `fetch()` which reads from `data/raw/google_places_*.json` on disk.
+      `discover()` (API call) and `enrich()` (API call) are only reachable from the `__main__` CLI block
+      when running `google_places.py` directly. No code path in `pipeline.py` can trigger the API.
+- [x] CHECK: Make sure all of the existing pipeline.source location modules work/are built into the pipeline (normalization, geocoding, deduping, etc.)
+      **VERIFIED:** All 27 SOURCES entries have matching `_SOURCE_HANDLERS` entries. 1:1 match.
+      One file exists but is intentionally unregistered: `nc_onemap.py` (not a data source yet).
+    - [x] Have any not been run?
+          **YES — 18 of 27 sources have never been run** (no raw output in `data/raw/`).
+          Run: wake_county, johnston_county, osm, alamance_county, greensboro, high_point,
+          playground_explorers, triad, google_places (9 sources).
+          Never run: southern_pines, nash_county, kill_devil_hills, graham, manteo, elizabeth_city,
+          new_bern, wilson, fayetteville, goldsboro, henderson_county, durham, lexington, asheville,
+          charlotte, mecklenburg_county, wilmington, new_hanover_county (18 sources).
+          These are listed in "Data Pipeline — New Sources" above and many need scrapers built/tested.
+- [x] CHECK: Are there any missing coordinates/addresses?
+      **4,542 total parks.** 1 park had 0,0 coords (Mitchell Street Park, greensboro — fixed: scraper
+      now treats 0,0 as missing, normalize.py safety net added). 144 parks missing addresses (all OSM).
+      79 parks missing county (43 google_places, 36 OSM — mostly coastal/barrier island parks where
+      point-in-polygon fails because coords fall outside county boundary polygons).
+    - [ ] If needed, Geocode or Reverse geocode remaining parks missing coordinates and or addresses
+- [x] Get county field in the data using coordinates + county boundaries data (currently just getting from address, sometimes wrong or missing)
+      **DONE:** `enrich.py` now always overwrites county using point-in-polygon from boundary data
+      (ignores whatever the source set). Added nearest-county fallback (~2km) for coastal/waterfront
+      parks whose coords land just offshore. All 79 previously missing-county parks now resolved.
+- [x] OSM amenity enrichment for remaining unmapped child POI tags
+      **DONE:** `dog=leashed/unleashed/designated` now maps to `dog_park`. `wheelchair=limited/designated`
+      now maps to `ada_accessible`. Previously only `=yes` was recognized.
+- [x] Update duplicates (e.g., Wilson's Mills Athletic Complex has three entries)
+      **DONE:** Tightened dedup: lowest tier raised from 60%/150m to 70%/100m. Added facility-type guard —
+      co-located but distinct facilities (dog park vs playground vs trail vs skatepark vs dam) are no
+      longer merged. Fixes false positives like "Beech Mountain Dog Park" ↔ "Beech Mountain Playground",
+      "Kitty Hawk Reserve" ↔ "Kitty Hawk Skatepark", "Salem Lake Trail" ↔ "Salem Lake Playground".
+- [x] Update Sources to be the URLs
+      **DONE:** Added `source_url` field to every park record (stamped during normalize from `_SOURCE_URLS`
+      dict — canonical homepage URL per source). Frontend `SourceLink` now uses `source_url` from data
+      with fallback to hardcoded `SOURCE_URLS`. Added all 27 sources to frontend `SOURCE_LABELS`.
 
 ---
 
@@ -232,7 +263,9 @@
 - [x] Sources as actual links, if you click +X more it shows all
 - [x] Use Consistent Capitalization for ammenedies
 - [X] Highlight selected park (different color maybe?)
----
+- [x] Buy me a coffee integration: buymeacoffee.com/bentontripp
+      **DONE:** Added to Header settings dropdown — coffee cup icon + "Buy me a coffee" link
+      opens buymeacoffee.com/bentontripp in new tab. Separated from settings options by a divider.
 
 ## Backend (AWS)
 

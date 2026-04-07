@@ -13,9 +13,9 @@ interface Props {
   onClose?: () => void;
 }
 
-function SourceLink({ source }: { source: string }) {
+function SourceLink({ source, sourceUrl }: { source: string; sourceUrl?: string }) {
   const label = SOURCE_LABELS[source] ?? source.replace(/_/g, " ");
-  const url = SOURCE_URLS[source];
+  const url = sourceUrl ?? SOURCE_URLS[source];
   if (url) {
     return (
       <a
@@ -225,7 +225,7 @@ export default function ParkDetailContent({ park, onClose }: Props) {
         {/* Sources */}
         <div className="mt-6 text-xs text-gray-400">
           {sourceCount === 1 ? "Source" : "Sources"}:{" "}
-          <SourceLink source={uniqueSources[0]} />
+          <SourceLink source={uniqueSources[0]} sourceUrl={park.source_url} />
           {sourceCount > 1 && !sourcesExpanded && (
             <button
               onClick={() => setSourcesExpanded(true)}

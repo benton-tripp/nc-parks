@@ -18,7 +18,17 @@ export default function Header() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open]);
 
-  const options: { value: MapProvider; label: string }[] = [
+  // Close on Escape
+  useEffect(() => {
+    if (!open) return;
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [open]);
+
+  const mapOptions: { value: MapProvider; label: string }[] = [
     { value: "google", label: "Google Maps" },
     { value: "apple", label: "Apple Maps" },
   ];
@@ -40,43 +50,65 @@ export default function Header() {
         Playground Finder
       </span>
 
-      {/* Settings */}
+      {/* Hamburger menu */}
       <div className="relative ml-auto" ref={menuRef}>
         <button
           onClick={() => setOpen((v) => !v)}
           className="rounded p-1.5 text-brand-200 hover:bg-brand-600 hover:text-white"
-          aria-label="Settings"
+          aria-label="Menu"
+          aria-expanded={open}
         >
-          <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path
-              fillRule="evenodd"
-              d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0
-                 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061
-                 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0
-                 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0
-                 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0
-                 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0
-                 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0
-                 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0
-                 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z"
-              clipRule="evenodd"
-            />
-          </svg>
+          {open ? (
+            <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          ) : (
+            <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          )}
         </button>
 
         {open && (
-          <div className="absolute right-0 top-full z-50 mt-1 w-48 rounded-lg bg-white py-1 shadow-lg ring-1 ring-black/5">
-            <p className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-gray-400">
-              Directions open in
+          <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded-lg bg-white py-1 shadow-lg ring-1 ring-black/5">
+            {/* Account (placeholder) */}
+            <button
+              disabled
+              className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-gray-400 cursor-not-allowed"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+              </svg>
+              Account
+              <span className="ml-auto text-[10px] font-medium uppercase tracking-wide text-gray-300">Soon</span>
+            </button>
+
+            {/* Submit a Park (placeholder) */}
+            <button
+              disabled
+              className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-gray-400 cursor-not-allowed"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+              </svg>
+              Submit a Park
+              <span className="ml-auto text-[10px] font-medium uppercase tracking-wide text-gray-300">Soon</span>
+            </button>
+
+            <div className="my-1 border-t border-gray-100" />
+
+            {/* Settings — Directions provider */}
+            <p className="px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-gray-400">
+              Settings
             </p>
-            {options.map((opt) => (
+            <p className="px-4 pb-1 text-[11px] text-gray-400">Directions open in</p>
+            {mapOptions.map((opt) => (
               <button
                 key={opt.value}
                 onClick={() => {
                   setProvider(opt.value);
-                  setOpen(false);
                 }}
-                className={`flex w-full items-center gap-2 px-3 py-2 text-sm ${
+                className={`flex w-full items-center gap-2 px-4 py-2 text-sm ${
                   provider === opt.value
                     ? "bg-brand-50 font-medium text-brand-700"
                     : "text-gray-700 hover:bg-gray-50"
@@ -97,6 +129,21 @@ export default function Header() {
                 {opt.label}
               </button>
             ))}
+
+            <div className="my-1 border-t border-gray-100" />
+
+            {/* Buy me a coffee */}
+            <a
+              href="https://buymeacoffee.com/bentontripp"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              <svg className="h-4 w-4 text-amber-500" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M2 21h18v-2H2v2zM20 8h-2V5h2V3H4v2h2v3H4a2 2 0 00-2 2v5a6 6 0 006 6h4a6 6 0 006-6h2a2 2 0 002-2v-3a2 2 0 00-2-2zm-2 7a4 4 0 01-4 4H8a4 4 0 01-4-4v-5h14v5zm4-5h-2v-2h2v2z" />
+              </svg>
+              Buy me a coffee
+            </a>
           </div>
         )}
       </div>

@@ -115,6 +115,9 @@ def _parse_one_item(item) -> dict | None:
             lon = float(direction_link.get("data-long", ""))
         except (ValueError, TypeError):
             pass
+    # Treat 0,0 as missing (Gulf of Guinea, not NC)
+    if lat == 0.0 and lon == 0.0:
+        lat = lon = None
 
     # Address from the Google Maps link inside li.facility_item_address
     address = None

@@ -258,6 +258,16 @@ def _map_amenities(tags: dict) -> dict[str, bool]:
         if val and val.lower() in ("yes", "true", "1"):
             amenities[amenity_key] = True
 
+    # dog=leashed/unleashed/designated also counts as dog-friendly
+    dog_val = tags.get("dog", "").lower()
+    if dog_val in ("leashed", "unleashed", "designated"):
+        amenities["dog_park"] = True
+
+    # wheelchair=limited/designated also counts as (partially) accessible
+    wheelchair_val = tags.get("wheelchair", "").lower()
+    if wheelchair_val in ("limited", "designated"):
+        amenities["ada_accessible"] = True
+
     # Playground sub-tags
     for tag_key, amenity_key in _PLAYGROUND_SUB_TAGS.items():
         val = tags.get(tag_key, "")
