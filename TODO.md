@@ -328,8 +328,11 @@ non-parks — with results that feed back into the pipeline as a post-processing
       `load_parks()` in data_io.py applies all pending overrides (field edits, merges, deletions)
       in-memory so every admin page sees the effective state immediately.
 - [ ] **Bulk actions**: verify all parks in a county, mark source as reviewed, etc.
-- [ ] **Audit log**: track what was changed, when, and why (stored in override files)
-- [ ] **Verified park dedup protection**: verified parks should be protected from future dedup merges
+- [x] **Audit log**: all override files now store timestamps — `deleted_at` in deletions,
+      `merged_at` in merges, `_edited_at` in field edits, `verified_at` in verifications.
+      Deletions also store the park `name` for readability. Pipeline's `apply_overrides.py`
+      and `data_io.py load_parks()` skip `_`-prefixed metadata keys when applying edits.
+- [ ] **User-Verified park dedup protection**: user-verified parks should be protected from future dedup merges
       (flag instead of auto-merging)
 
 ### Pipeline Integration Steps

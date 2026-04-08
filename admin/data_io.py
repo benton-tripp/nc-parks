@@ -54,6 +54,8 @@ def load_parks() -> list[dict]:
             pk = park_key(p)
             if pk in edits:
                 for field, value in edits[pk].items():
+                    if field.startswith("_"):  # skip audit metadata
+                        continue
                     if field == "amenities" and isinstance(value, dict):
                         p.setdefault("amenities", {}).update(value)
                     elif field == "extras" and isinstance(value, dict):
@@ -111,9 +113,9 @@ def load_parks() -> list[dict]:
             parks = [p for p in parks if park_key(p) not in drop_keys]
 
     # 3. Apply deletions
-    deletions: list[str] = _load_json(_OVERRIDES / "deletions.json", [])
-    if deletions:
-        del_set = set(deletions)
+    deletions_raw = _load_json(_OVERRIDES / "deletions.json", [])
+    if deletions_raw:
+        del_set = {(d["key"] if isinstance(d, dict) else d) for d in deletions_raw}
         parks = [p for p in parks if park_key(p) not in del_set]
 
     return parks
@@ -137,12 +139,25 @@ def _save_json(path: Path, data):
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
-def load_deletions() -> list[str]:
-    return _load_json(_OVERRIDES / "deletions.json", [])
+def load_deletions() -> list[dict]:
+    """Load deletions as list of dicts: {key, deleted_at, name}."""
+    raw = _load_json(_OVERRIDES / "deletions.json", [])
+    result = []
+    for item in raw:
+        if isinstance(item, str):  # backward compat: migrate flat strings
+            result.append({"key": item, "deleted_at": None, "name": ""})
+        else:
+            result.append(item)
+    return result
 
 
-def save_deletions(deletions: list[str]):
+def save_deletions(deletions: list[dict]):
     _save_json(_OVERRIDES / "deletions.json", deletions)
+
+
+def deletion_key_set(deletions: list[dict]) -> set[str]:
+    """Extract the set of park keys from a deletions list."""
+    return {d["key"] for d in deletions}
 
 
 def load_field_edits() -> dict[str, dict]:

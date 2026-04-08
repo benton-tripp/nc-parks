@@ -11,8 +11,8 @@ from streamlit_folium import st_folium
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from data_io import (
-    load_parks, load_deletions, save_deletions, park_key,
-    google_maps_url, google_satellite_url, pretty, AMENITY_COLS,
+    load_parks, load_deletions, save_deletions, deletion_key_set, park_key,
+    google_maps_url, google_satellite_url, pretty, AMENITY_COLS, now_iso,
 )
 
 
@@ -29,9 +29,13 @@ def render():
     if not deletions:
         st.info("No parks are currently marked for deletion.")
     else:
-        for i, key in enumerate(deletions):
+        for i, d in enumerate(deletions):
+            key = d["key"]
             park = park_map.get(key)
-            with st.expander(f"{'❌ ' + park['name'] + ' — ' + park.get('source', '') if park else key}"):
+            label = f"{'❌ ' + park['name'] + ' — ' + park.get('source', '') if park else key}"
+            if d.get("deleted_at"):
+                label += f"  ({d['deleted_at'][:10]})"
+            with st.expander(label):
                 if park:
                     col_l, col_r = st.columns([2, 1])
                     with col_l:
@@ -60,8 +64,11 @@ def render():
                     st.warning(f"Park key `{key}` not found in current data — "
                                "may have been removed by a source re-scrape.")
 
+                if d.get("deleted_at"):
+                    st.caption(f"Deleted: {d['deleted_at']}")
+
                 if st.button("🔄 Restore (undelete)", key=f"restore_{i}"):
-                    deletions.remove(key)
+                    deletions.pop(i)
                     save_deletions(deletions)
                     st.success(f"Restored: {key}")
                     st.rerun()
@@ -82,7 +89,7 @@ def render():
         filtered = parks
 
     # Exclude already-deleted parks
-    del_set = set(deletions)
+    del_set = deletion_key_set(deletions)
     filtered = [p for p in filtered if park_key(p) not in del_set]
 
     if filtered:
@@ -114,7 +121,11 @@ def render():
                     st_folium(m, width=350, height=250, key="quick_del_map")
 
         if st.button("🗑️ Mark for deletion", type="primary"):
-            deletions.append(chosen_key)
+            deletions.append({
+                "key": chosen_key,
+                "deleted_at": now_iso(),
+                "name": chosen_park.get("name", "") if chosen_park else "",
+            })
             save_deletions(deletions)
             st.success(f"Marked for deletion: {chosen_key}")
             st.rerun()

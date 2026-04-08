@@ -14,8 +14,8 @@ from streamlit_folium import st_folium
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from data_io import (
     load_parks, load_manual_merges, save_manual_merges, load_deletions,
-    save_deletions, load_verifications, park_key, google_maps_url,
-    google_satellite_url, pretty, AMENITY_COLS,
+    save_deletions, deletion_key_set, load_verifications, park_key,
+    google_maps_url, google_satellite_url, pretty, AMENITY_COLS, now_iso,
 )
 
 
@@ -128,7 +128,7 @@ def render():
         candidates = _find_candidates(parks, max_dist=max_dist, min_sim=min_sim / 100, limit=limit)
 
     # Filter out already-merged or deleted pairs
-    del_set = set(deletions)
+    del_set = deletion_key_set(deletions)
     candidates = [
         c for c in candidates
         if park_key(c["a"]) not in existing_merge_keys
@@ -334,6 +334,7 @@ def render():
                 "keep": keep_key,
                 "drop": drop_key,
                 "field_overrides": overrides,
+                "merged_at": now_iso(),
             })
             save_manual_merges(merges)
             kept_name = overrides.get("name", keep_park.get("name", ""))
@@ -344,9 +345,11 @@ def render():
     with col2:
         if st.button("↔️ Not Duplicates — Keep Both"):
             merges.append({"keep": key_a, "drop": "__skip__",
-                           "note": f"Reviewed: not a duplicate with {key_b}"})
+                           "note": f"Reviewed: not a duplicate with {key_b}",
+                           "merged_at": now_iso()})
             merges.append({"keep": key_b, "drop": "__skip__",
-                           "note": f"Reviewed: not a duplicate with {key_a}"})
+                           "note": f"Reviewed: not a duplicate with {key_a}",
+                           "merged_at": now_iso()})
             save_manual_merges(merges)
             st.info("Marked as reviewed — not duplicates.")
             st.rerun()
@@ -358,26 +361,29 @@ def render():
 
     with del_col1:
         if st.button(f"🗑️ Delete A ({park_a['name'][:30]})", key="del_a"):
-            if key_a not in deletions:
-                deletions.append(key_a)
+            dk_set = deletion_key_set(deletions)
+            if key_a not in dk_set:
+                deletions.append({"key": key_a, "deleted_at": now_iso(), "name": park_a["name"]})
                 save_deletions(deletions)
             st.success(f"Marked for deletion: {park_a['name']}")
             st.rerun()
 
     with del_col2:
         if st.button(f"🗑️ Delete B ({park_b['name'][:30]})", key="del_b"):
-            if key_b not in deletions:
-                deletions.append(key_b)
+            dk_set = deletion_key_set(deletions)
+            if key_b not in dk_set:
+                deletions.append({"key": key_b, "deleted_at": now_iso(), "name": park_b["name"]})
                 save_deletions(deletions)
             st.success(f"Marked for deletion: {park_b['name']}")
             st.rerun()
 
     with del_col3:
         if st.button("🗑️ Delete Both", key="del_both"):
+            dk_set = deletion_key_set(deletions)
             changed = False
-            for k in (key_a, key_b):
-                if k not in deletions:
-                    deletions.append(k)
+            for k, name in ((key_a, park_a["name"]), (key_b, park_b["name"])):
+                if k not in dk_set:
+                    deletions.append({"key": k, "deleted_at": now_iso(), "name": name})
                     changed = True
             if changed:
                 save_deletions(deletions)

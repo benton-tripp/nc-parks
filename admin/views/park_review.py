@@ -13,8 +13,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from data_io import (
     AMENITY_COLS, load_parks, load_verifications, save_verifications,
     load_field_edits, save_field_edits, load_deletions, save_deletions,
-    park_key, pretty, google_maps_url, google_satellite_url, apple_maps_url,
-    now_iso,
+    deletion_key_set, park_key, pretty, google_maps_url, google_satellite_url,
+    apple_maps_url, now_iso,
 )
 
 
@@ -36,7 +36,7 @@ def render():
     verifications = load_verifications()
     edits = load_field_edits()
     deletions_list = load_deletions()
-    del_set = set(deletions_list)
+    del_set = deletion_key_set(deletions_list)
 
     # ---- Filters ----
     with st.sidebar:
@@ -308,7 +308,7 @@ def render():
                 changes["amenities"] = edited_amenities
 
             if changes:
-                edits[pk] = {**current_field_edits, **changes}
+                edits[pk] = {**current_field_edits, **changes, "_edited_at": now_iso()}
                 save_field_edits(edits)
                 # Clear clicked coords after saving
                 if clicked_key in st.session_state:
@@ -362,7 +362,11 @@ def render():
 
     with col_delete:
         if st.button("🗑️ Mark for Deletion", type="secondary"):
-            deletions_list.append(pk)
+            deletions_list.append({
+                "key": pk,
+                "deleted_at": now_iso(),
+                "name": park["name"],
+            })
             save_deletions(deletions_list)
             st.warning(f"Marked {park['name']} for deletion")
             st.rerun()

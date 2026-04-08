@@ -61,7 +61,7 @@ def apply_overrides(
 
     # --- 1. Deletions -------------------------------------------------------
     if deletions:
-        del_set = set(deletions)
+        del_set = {(d["key"] if isinstance(d, dict) else d) for d in deletions}
         before = len(parks)
         parks = [p for p in parks if _park_key(p) not in del_set]
         n_del = before - len(parks)
@@ -125,6 +125,8 @@ def apply_overrides(
                 logger.warning("Field edit: key %r not found — skipping", pk)
                 continue
             for field, value in fields.items():
+                if field.startswith("_"):  # skip audit metadata
+                    continue
                 if field == "amenities" and isinstance(value, dict):
                     target.setdefault("amenities", {}).update(value)
                 elif field == "extras" and isinstance(value, dict):
