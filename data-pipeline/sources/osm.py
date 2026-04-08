@@ -237,6 +237,7 @@ _SPORT_MAP = {
     "handball":         "handball",
     "horseshoes":       "horseshoe",
     "swimming":         "swimming_pool",
+    "pickleball":       "pickleball",
     "multi":            "multipurpose_field",
 }
 

@@ -12,17 +12,11 @@ _DATA = _ROOT / "data"
 _FINAL = _DATA / "final"
 _OVERRIDES = _DATA / "overrides"
 
-AMENITY_COLS = [
-    "playground", "restrooms", "parking", "walking_trails",
-    "picnic_tables", "picnic_shelter", "shaded_areas", "drinking_water",
-    "ada_accessible", "ball_fields", "basketball_courts", "tennis_courts",
-    "multipurpose_field", "swimming_pool", "splash_pad", "dog_park",
-    "disc_golf", "fishing", "skate_park", "bbq_grill",
-    "sand_volleyball", "bocce", "horseshoe", "bmx_track",
-    "equestrian", "lighting", "greenway_access", "gym",
-    "community_center", "camping", "biking", "gardens",
-    "fenced_playground", "open_field", "track",
-]
+_REGISTRY_PATH = _ROOT / "amenities.json"
+_registry = json.loads(_REGISTRY_PATH.read_text(encoding="utf-8"))
+AMENITY_COLS = [a["key"] for a in _registry]
+AMENITY_CATEGORIES = {a["key"]: a["category"] for a in _registry}
+AMENITY_LABELS = {a["key"]: a["label"] for a in _registry}
 
 
 def pretty(name: str) -> str:

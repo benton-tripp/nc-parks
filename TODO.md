@@ -376,6 +376,177 @@ non-parks — with results that feed back into the pipeline as a post-processing
       **DONE:** Added to Header settings dropdown — coffee cup icon + "Buy me a coffee" link
       opens buymeacoffee.com/bentontripp in new tab. Separated from settings options by a divider.
 
+## Amenity Expansion — Game Plan
+
+### Goal
+
+Add 6 new amenities: **Swimming (Lake)**, **Pickleball**, **Swings**, **Playground Ground Surface**,
+**Shaded Playground**, **Sandbox**. Design the system so adding future amenities is a one-file change
+instead of updating 5+ scattered lists.
+
+### Current State (audit)
+
+Amenity definitions are scattered across **5 independent lists** that have drifted out of sync:
+
+| List | Location | Count | Notes |
+|---|---|---|---|
+| `CANONICAL_AMENITIES` | `normalize.py` | ~50 keys | Pipeline superset — includes `swings`, `slides`, `sandbox` etc. |
+| `AMENITY_COLS` | `admin/data_io.py` | 35 keys | Admin checkbox list — missing `swings`, `slides`, `pavilion`, etc. |
+| `AMENITY_COLS` | `export_excel.py` | 26 keys | Excel export subset |
+| `FILTERABLE_AMENITIES` | `frontend/park.ts` | 27 entries | User-facing filter checkboxes |
+| `AMENITY_LABELS` | `frontend/park.ts` | 42 entries | Display labels (includes `pickleball` label but not filterable) |
+
+**Per-amenity status:**
+
+| Amenity | `CANONICAL` | Admin | Frontend filter | Source data exists? |
+|---|---|---|---|---|
+| `swimming_pool` | ✅ | ✅ | ❌ (label only) | ✅ wake, civicplus, osm, google, asheville |
+| `lake_swimming` | ❌ | ❌ | ❌ | ❌ new — needs manual tagging |
+| `pickleball` | ❌ | ❌ | ❌ (label only) | ✅ asheville, civicplus, goldsboro already mapped! |
+| `swings` | ✅ | ❌ | ✅ | ✅ osm, playground_explorers, goldsboro, durham |
+| `sandbox` | ❌ | ❌ | ❌ | ⚠️ osm → "sandbox", but playground_explorers → "playground" (data loss!) |
+| `shaded_playground` | ❌ | ❌ | ❌ | ❌ new — `shaded_areas` exists but is different |
+| `playground_surface` | ❌ | ❌ | ❌ | ❌ new — design decision needed (see Phase 3) |
+
+**Quick wins**: `swings` data already exists in parks_latest.json from OSM/goldsboro/durham — just
+making it visible in admin + frontend is free. Same for `pickleball` (3+ sources already map it).
+
+**Data loss bug**: `playground_explorers.py` maps `sandbox_available → "playground"` instead of
+`"sandbox"` — loses specificity. Fix in Phase 2.
+
+### Phase 0: Single Source of Truth — `amenities.json`
+
+- [x] **Create `amenities.json`** at project root — canonical registry of ALL amenities (66 entries,
+      7 categories: Playground, Facilities, Sports, Outdoors, Water, Accessibility, Surface)
+
+```json
+[
+  { "key": "playground",        "label": "Playground",        "category": "Playground",  "filterable": true },
+  { "key": "swings",            "label": "Swings",            "category": "Playground",  "filterable": true },
+  { "key": "slides",            "label": "Slides",            "category": "Playground",  "filterable": true },
+  { "key": "sandbox",           "label": "Sandbox",           "category": "Playground",  "filterable": true },
+  { "key": "shaded_playground", "label": "Shaded Playground", "category": "Playground",  "filterable": true },
+  { "key": "splash_pad",        "label": "Splash Pad",        "category": "Playground",  "filterable": true },
+  { "key": "fenced_playground", "label": "Fenced Playground", "category": "Playground",  "filterable": true },
+  { "key": "swimming_pool",     "label": "Swimming Pool",     "category": "Water",       "filterable": true },
+  { "key": "lake_swimming",     "label": "Lake Swimming",     "category": "Water",       "filterable": true },
+  { "key": "pickleball",        "label": "Pickleball",        "category": "Sports",      "filterable": true },
+  ...
+]
+```
+
+**Who reads it:**
+- **Pipeline** (`normalize.py`): `CANONICAL_AMENITIES = {a["key"] for a in registry}`
+- **Admin** (`data_io.py`): `AMENITY_COLS = [a["key"] for a in registry]`
+- **Frontend** (`park.ts`): `import registry from '../../../amenities.json'` → derive
+  `FILTERABLE_AMENITIES` and `AMENITY_LABELS` automatically
+- **Excel export** (`export_excel.py`): same JSON file
+
+**Benefits:**
+- Adding a new amenity = add one entry to `amenities.json` + add source `AMENITY_MAP` entries
+- No more 5 lists silently drifting out of sync
+- Categories, labels, and filterable flags all in one place
+- Frontend always matches pipeline — no invisible data
+
+### Phase 1: Create Registry + Update All Readers
+
+- [x] Create `amenities.json` with ALL current amenities (union of all 5 lists + the 6 new ones)
+- [x] Update `normalize.py`: derive `CANONICAL_AMENITIES` from registry JSON
+- [x] Update `admin/data_io.py`: derive `AMENITY_COLS` + `AMENITY_CATEGORIES` + `AMENITY_LABELS` from registry JSON
+- [x] Update `data-pipeline/utils/export_excel.py`: derive its `AMENITY_COLS` from registry JSON
+- [x] Update `frontend/src/types/park.ts`: derive `FILTERABLE_AMENITIES` + `AMENITY_LABELS` from registry
+- [x] Verify: TypeScript compiles clean, Python imports work, all 66 amenities present
+
+### Phase 2: Pipeline — Fix/Add Source Mappings
+
+- [x] **Fix `playground_explorers.py`**: `sandbox_available → "sandbox"` (was mapping to `"playground"`)
+- [x] **Add `pickleball` to OSM**: `_SPORT_MAP["pickleball"] = "pickleball"`
+- [ ] **Add `lake_swimming` detection**:
+  - OSM: `natural=water` + `sport=swimming` or `leisure=swimming_area` → `lake_swimming`
+  - Most sources won't have this; primarily a manual-verification amenity via admin tool
+- [ ] **`shaded_playground`**: Primarily manual-verification. Could keyword-scan source descriptions for
+  "shaded" near "playground" but false-positive risk is high — better to leave for admin review.
+- [ ] **`sandbox`**: Already captured by OSM (`playground:sandpit → sandbox`). Fix playground_explorers
+  (above). Other sources don't distinguish sandbox from general playground.
+- [ ] Review remaining sources (wake_county, greensboro, civicplus_base, durham_county) for any
+  unmapped fields that could feed into the new amenity keys
+
+### Phase 3: Design Decision — Playground Ground Surface
+
+**Options:**
+
+**A) Boolean sub-amenities** (recommended): `surface_rubber`, `surface_wood_chips`, `surface_sand`,
+`surface_pea_gravel`, `surface_poured_rubber`
+- Pro: Consistent with existing boolean model, directly filterable ("show me parks with rubber surface")
+- Pro: Multiple surfaces per park (e.g., rubber under swings + sand in sandbox area)
+- Con: Proliferates amenity keys (5+ new entries)
+
+**B) Text field in extras**: `extras.playground_surface = "poured rubber"`
+- Pro: Flexible, no amenity schema change
+- Con: Not filterable, free-text inconsistency, invisible in amenity checkboxes
+
+**C) Enum amenity**: `playground_surface` with values "rubber|wood_chips|sand|pea_gravel|poured"
+- Pro: Structured, single key
+- Con: Breaks the `Record<string, boolean>` amenity model, needs FilterPanel dropdown instead of checkbox
+
+**Recommendation**: **Option A** — boolean sub-amenities grouped under a "Surface" category in the
+filter panel. Consistent with existing patterns. Most source data won't have this info (primarily a
+manual-verification field via admin checkboxes), so the proliferation concern is low.
+
+### Phase 4: Admin Tool
+
+- [x] `AMENITY_COLS` now reads from `amenities.json` → new amenities appear in checkboxes automatically
+- [x] Group amenity checkboxes by `category` (from registry) instead of current flat 4-column grid
+- [x] No logic changes needed — park_review.py already handles arbitrary amenity keys
+
+### Phase 5: Frontend
+
+- [x] `FILTERABLE_AMENITIES` + `AMENITY_LABELS` derived from registry → new filters auto-appear
+- [x] FilterPanel.tsx already groups by category — new categories (Water, Surface) auto-render
+- [x] ParkDetailContent.tsx uses `formatAmenityLabel()` fallback — works for unknown keys already
+- [x] Reorganized amenities into better categories via registry:
+  - `splash_pad` + `swimming_pool` + `lake_swimming` in "Water" category
+  - `sandbox`, `shaded_playground`, `fenced_playground` in "Playground" category
+  - `pickleball` in "Sports" category
+  - Surface types (`surface_rubber`, etc.) in "Surface" category
+
+### Phase 6: Re-run Pipeline + Verify
+
+- [ ] Full pipeline re-run (`python -m data-pipeline.pipeline`)
+- [ ] Check amenity counts for newly visible keys (swings/sandbox should have data from OSM/others)
+- [ ] Verify admin tool shows new amenity checkboxes grouped by category
+- [ ] Verify frontend filters work for new amenities
+- [ ] Spot-check parks known to have swings/sandbox (OSM playground sub-tags) to confirm data flows
+
+### Risk Assessment
+
+- **Zero risk to existing data**: All changes are additive. Existing boolean amenity keys are untouched.
+  New keys simply won't appear in old records (= not shown, correctly handled everywhere).
+- **Data gain from "invisible" amenities**: `swings`, `slides`, and `pickleball` already exist in many
+  parks' amenity dicts — they're just not displayed. Making them visible is a free data quality win.
+- **Playground Explorers sandbox fix**: Changes 1 mapping. Old records with `playground: true` still
+  correct (they ARE playgrounds). New `sandbox: true` adds specificity, doesn't remove anything.
+- **Pipeline re-run safe**: `amenities.json` is read-only by the pipeline. Adding keys to
+  `CANONICAL_AMENITIES` only affects normalization validation (warns on unknown keys) — existing
+  records that already have `swings: true` from OSM will pass through unchanged.
+
+### Files Changed (complete list)
+
+| File | Change |
+|---|---|
+| `amenities.json` (new) | Canonical amenity registry |
+| `data-pipeline/processing/normalize.py` | Read from registry instead of hardcoded set |
+| `data-pipeline/sources/playground_explorers.py` | Fix `sandbox_available → "sandbox"` |
+| `data-pipeline/sources/osm.py` | Add `pickleball` to `_SPORT_MAP` |
+| `admin/data_io.py` | Read from registry instead of hardcoded list |
+| `data-pipeline/utils/export_excel.py` | Read from registry instead of hardcoded list |
+| `frontend/src/types/park.ts` | Read from registry, derive constants |
+| `frontend/src/components/filters/FilterPanel.tsx` | No changes (already reads from `FILTERABLE_AMENITIES`) |
+| `frontend/src/components/parks/ParkDetailContent.tsx` | No changes (uses `formatAmenityLabel` fallback) |
+| `admin/views/park_review.py` | Minor: group checkboxes by category |
+
+---
+
 ## Backend (AWS)
 
 - [ ] DynamoDB table design + SAM template

@@ -21,16 +21,10 @@ DATA_DIR = _ROOT / "data" / "final"
 DEFAULT_INPUT = DATA_DIR / "parks_latest.json"
 DEFAULT_OUTPUT = _ROOT / "nc_parks.xlsx"
 
-# Amenity columns in display order
-AMENITY_COLS = [
-    "playground", "restrooms", "parking", "walking_trails",
-    "picnic_tables", "picnic_shelter", "shaded_areas", "drinking_water",
-    "ada_accessible", "ball_fields", "basketball_courts", "tennis_courts",
-    "multipurpose_field", "swimming_pool", "splash_pad", "dog_park",
-    "disc_golf", "fishing", "skate_park", "bbq_grill",
-    "sand_volleyball", "bocce", "horseshoe", "bmx_track",
-    "equestrian", "lighting",
-]
+# Amenity columns derived from the canonical registry
+_REGISTRY_PATH = _ROOT / "amenities.json"
+_registry = json.loads(_REGISTRY_PATH.read_text(encoding="utf-8"))
+AMENITY_COLS = [a["key"] for a in _registry]
 
 
 def _pretty(name: str) -> str:

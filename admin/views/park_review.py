@@ -11,7 +11,8 @@ from streamlit_folium import st_folium
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from data_io import (
-    AMENITY_COLS, load_parks, load_verifications, save_verifications,
+    AMENITY_COLS, AMENITY_CATEGORIES, AMENITY_LABELS,
+    load_parks, load_verifications, save_verifications,
     load_field_edits, save_field_edits, load_deletions, save_deletions,
     deletion_key_set, park_key, pretty, google_maps_url, google_satellite_url,
     apple_maps_url, now_iso,
@@ -96,7 +97,21 @@ def render():
         return
 
     # ---- Park selector ----
-    park_names = [f"{p['name']} ({p['source']})" for p in filtered]
+    # Build unique labels: add city/county/coords when names collide
+    _name_counts: dict[str, int] = {}
+    for p in filtered:
+        label = f"{p['name']} ({p['source']})"
+        _name_counts[label] = _name_counts.get(label, 0) + 1
+
+    park_names: list[str] = []
+    for p in filtered:
+        label = f"{p['name']} ({p['source']})"
+        if _name_counts[label] > 1:
+            city = p.get("city") or p.get("county") or ""
+            lat = round(p.get("latitude", 0), 3)
+            lon = round(p.get("longitude", 0), 3)
+            label += f" — {city} [{lat}, {lon}]" if city else f" [{lat}, {lon}]"
+        park_names.append(label)
     idx = st.selectbox("Select a park", range(len(filtered)),
                        format_func=lambda i: park_names[i])
     park = filtered[idx]
@@ -243,14 +258,22 @@ def render():
     amenities = park.get("amenities", {})
     current_edits = edits.get(pk, {}).get("amenities", {})
 
-    cols = st.columns(4)
     edited_amenities = {}
-    for i, a in enumerate(AMENITY_COLS):
-        # Use edit override if present, otherwise use park value
-        current = current_edits.get(a, amenities.get(a, False))
-        new_val = cols[i % 4].checkbox(pretty(a), value=bool(current), key=f"amenity_{a}")
-        if new_val != amenities.get(a, False):
-            edited_amenities[a] = new_val
+    # Group by category from the registry
+    from collections import OrderedDict
+    cats: OrderedDict[str, list[str]] = OrderedDict()
+    for a in AMENITY_COLS:
+        cat = AMENITY_CATEGORIES.get(a, "Other")
+        cats.setdefault(cat, []).append(a)
+    for cat, keys in cats.items():
+        st.caption(cat)
+        cols = st.columns(4)
+        for i, a in enumerate(keys):
+            label = AMENITY_LABELS.get(a, pretty(a))
+            current = current_edits.get(a, amenities.get(a, False))
+            new_val = cols[i % 4].checkbox(label, value=bool(current), key=f"amenity_{a}")
+            if new_val != amenities.get(a, False):
+                edited_amenities[a] = new_val
 
     st.divider()
 

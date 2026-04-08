@@ -41,7 +41,7 @@ AMENITY_MAP = {
     "slides_available":              "slides",
     "swings_available":              "swings",
     "climbing_structures_available": "playground",
-    "sandbox_available":             "playground",
+    "sandbox_available":             "sandbox",
     "seesaws_available":             "playground",
     "zip_line_available":            "playground",
     "water_features":                "splash_pad",

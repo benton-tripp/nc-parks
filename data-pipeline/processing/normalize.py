@@ -27,31 +27,22 @@ Canonical park schema
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import uuid
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# ---- Canonical amenity keys (superset across all sources) ----------------
+# ---- Canonical amenity keys (derived from amenities.json) ----------------
 # Sources map their own field names into these.  Any key a source doesn't
 # provide simply won't appear in the dict — that's fine.  ``None`` means
 # "unknown" vs. ``False`` = "definitely not present."
 
-CANONICAL_AMENITIES = {
-    "playground", "restrooms", "swings", "slides", "splash_pad",
-    "shaded_areas", "picnic_tables", "picnic_shelter", "pavilion",
-    "ada_accessible", "parking", "drinking_water", "walking_trails",
-    "basketball_courts", "tennis_courts", "swimming_pool", "dog_park",
-    "disc_golf", "fishing", "boat_rental", "canoe_kayak", "skate_park",
-    "greenway_access", "gym", "multipurpose_field", "ball_fields",
-    "community_center", "neighborhood_center", "track", "biking",
-    "gardens", "camping", "equestrian", "fenced_playground",
-    "open_field", "sand_volleyball", "bmx_track", "horseshoe",
-    "bocce", "handball", "inline_skating", "carousel", "amusement_train",
-    "boat_ride", "arts_center", "environmental_center", "tennis_center",
-    "theater", "library", "museum", "live_animals",
-}
+_REGISTRY_PATH = Path(__file__).resolve().parent.parent.parent / "amenities.json"
+_registry = json.loads(_REGISTRY_PATH.read_text(encoding="utf-8"))
+CANONICAL_AMENITIES = {a["key"] for a in _registry}
 
 # Canonical source URLs for attribution — the homepage / portal for each data source.
 _SOURCE_URLS: dict[str, str] = {
