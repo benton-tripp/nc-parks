@@ -243,78 +243,74 @@ non-parks — with results that feed back into the pipeline as a post-processing
 
 ### Architecture
 
-1. **Override files** (`data/overrides/`) — JSON files the pipeline reads after normalize + dedup:
-   - `field_edits.json` — per-park field corrections keyed by `source + source_id`
-     ```json
-     {
-       "osm::osm-n123456": {
-         "name": "Corrected Park Name",
-         "address": "123 Real St, Raleigh, NC 27601",
-         "latitude": 35.7796,
-         "longitude": -78.6382
-       }
-     }
-     ```
-   - `manual_merges.json` — explicit dedup instructions (merge B into A, keep A's fields unless specified)
-     ```json
-     [
-       {
-         "keep": "wake_county::wake_286_property",
-         "drop": "osm::osm-w987654",
-         "field_overrides": { "name": "286 Property Park" }
-       }
-     ]
-     ```
-   - `deletions.json` — parks to exclude (not real parks, businesses, etc.)
-     ```json
-     ["google_places::gp_abc123", "osm::osm-n999999"]
-     ```
-   - `verifications.json` — per-park per-field verification status + notes
-     ```json
-     {
-       "wake_county::wake_marsh_creek": {
-         "verified_at": "2026-04-07T12:00:00",
-         "fields": {
-           "name": { "status": "verified" },
-           "address": { "status": "verified" },
-           "coordinates": { "status": "corrected", "note": "Moved pin to entrance" },
-           "amenities": { "status": "needs_review" }
-         }
-       }
-     }
-     ```
+**Override files** (`data/overrides/`) — JSON files the pipeline reads after normalize + dedup:
 
-2. **Pipeline integration** — new step in `pipeline.py` after dedup, before final output:
-   - Apply `deletions.json` (remove parks)
-   - Apply `manual_merges.json` (merge pairs)
-   - Apply `field_edits.json` (overwrite fields)
-   - Stamp `verifications.json` status into each park's `extras`
-   - Log a summary of overrides applied per run
+- `field_edits.json` — per-park field corrections keyed by `source + source_id`
 
-3. **Local admin UI** — options to evaluate:
+    ```json
+    {
+    "osm::osm-n123456": {
+        "name": "Corrected Park Name",
+        "address": "123 Real St, Raleigh, NC 27601",
+        "latitude": 35.7796,
+        "longitude": -78.6382
+    }
+    }
+    ```
 
-   **Option A: Streamlit app** *(recommended)*
-   - Python-native, runs locally (`streamlit run admin/app.py`)
-   - Built-in: data tables, forms, maps (via streamlit-folium or pydeck), text input, buttons
-   - Park review page: shows all fields, Google/Apple Maps links, satellite link, amenity checkboxes.
-     Click "Verified" / "Corrected" / "Flagged" per field. Edits write to override JSONs.
-   - Dedup review page: shows candidate pairs (name similarity + distance), side-by-side comparison,
-     map showing both pins, "Merge", "Keep Both", or "Delete One" buttons.
-   - Deletion page: flag non-parks, businesses, or duplicates. Shows park detail + map for context.
-   - Dashboard: verification progress (% verified by county, by source), data quality stats.
-   - Reads directly from `data/final/parks_latest.json` + `data/overrides/` files.
-   - Pros: fastest to build, Python ecosystem, no frontend build step, great for data workflows.
-   - Cons: separate dependency (`streamlit`, `folium`), less polished than custom React.
+- `manual_merges.json` — explicit dedup instructions (merge B into A, keep A's fields unless specified)
 
-   **Option B: Separate React admin route** *(alternative)*
-   - New `/admin` route in existing Vite app, reuses MapLibre + Tailwind + existing components.
-   - Needs a tiny local API server (Express or Flask) to write override JSONs back to disk.
-   - Pro: reuses existing frontend stack. Con: more code, needs backend for file writes.
+    ```json
+    [
+    {
+        "keep": "wake_county::wake_286_property",
+        "drop": "osm::osm-w987654",
+        "field_overrides": { "name": "286 Property Park" }
+    }
+    ]
+    ```
 
-   **Option C: Enhanced Excel + import script** *(simplest but limited)*
-   - Extend `export_excel.py` to add verification columns, then build an `import_overrides.py`
-     script that reads the edited Excel back and generates the override JSONs.
-   - Pro: zero new dependencies. Con: no map context, poor dedup workflow, manual export/import cycle.
+- `deletions.json` — parks to exclude (not real parks, businesses, etc.)
+
+    ```json
+    ["google_places::gp_abc123", "osm::osm-n999999"]
+    ```
+
+- `verifications.json` — per-park per-field verification status + notes
+
+    ```json
+    {
+    "wake_county::wake_marsh_creek": {
+        "verified_at": "2026-04-07T12:00:00",
+        "fields": {
+        "name": { "status": "verified" },
+        "address": { "status": "verified" },
+        "coordinates": { "status": "corrected", "note": "Moved pin to entrance" },
+        "amenities": { "status": "needs_review" }
+        }
+    }
+    }
+    ```
+
+**Pipeline integration** — new step in `pipeline.py` after dedup, before final output:
+
+- Apply `deletions.json` (remove parks)
+- Apply `manual_merges.json` (merge pairs)
+- Apply `field_edits.json` (overwrite fields)
+- Stamp `verifications.json` status into each park's `extras`
+- Log a summary of overrides applied per run
+
+**Local admin UI - Streamlit app:**
+
+- Python-native, runs locally (`streamlit run admin/app.py`)
+- Built-in: data tables, forms, maps (via streamlit-folium), text input, buttons
+- Park review page: shows all fields, Google/Apple Maps links, satellite link, amenity checkboxes.
+    Click "Verified" / "Corrected" / "Flagged" per field. Edits write to override JSONs.
+- Dedup review page: shows candidate pairs (name similarity + distance), side-by-side comparison,
+    map showing both pins, "Merge", "Keep Both", or "Delete One" buttons.
+- Deletion page: flag non-parks, businesses, or duplicates. Shows park detail + map for context.
+- Dashboard: verification progress (% verified by county, by source), data quality stats.
+- Reads directly from `data/final/parks_latest.json` + `data/overrides/` files.
 
 ### Admin UI Features (regardless of option chosen)
 
@@ -322,6 +318,7 @@ non-parks — with results that feed back into the pipeline as a post-processing
 - [ ] **Field-level verification**: click through each park, mark fields as verified/corrected/flagged
 - [ ] **Inline editing**: edit name, address, coordinates, phone, amenities — writes to `field_edits.json`
 - [ ] **Map context**: show park on map with satellite toggle, nearby parks visible for dedup context
+    * E.g., An iframe with google maps??
 - [ ] **Quick links**: Google Maps, Apple Maps, Google satellite, source URL — one click each
 - [ ] **Dedup review queue**: pairs ranked by similarity score, side-by-side detail + map, merge/keep/delete
 - [ ] **Deletion queue**: flagged non-parks with one-click confirm
@@ -329,6 +326,18 @@ non-parks — with results that feed back into the pipeline as a post-processing
 - [ ] **Coordinate correction**: click-on-map to update lat/lon (drag pin to correct location)
 - [ ] **Bulk actions**: verify all parks in a county, mark source as reviewed, etc.
 - [ ] **Audit log**: track what was changed, when, and why (stored in override files)
+- [ ] The dedup review UI should also suggest threshold/parameter adjustments for `deduplicate.py`
+      (e.g., "These 15 pairs were manually merged — consider lowering the similarity threshold for
+      this pattern")
+- [ ] Verified parks be protected from future dedup merges (i.e., if I verified park X, don't let
+  a future pipeline run merge it into something else without flagging it); This might be a later feature
+  once verifications are implemented, so maybe just keep a note/TODO open in the code.
+- [ ] Overrides should survive source re-scrapes (keyed by source+source_id, so they persist as long
+  as the source keeps producing that ID. If a source_id disappears, log a warning; there may need to be a
+  re-evaluation of the source script to ensure they are not completely unique each time it re-runs).
+- [ ] Make sure to highlight sources from Google Places API on/near the park(s) of interest; this is
+  possibly my most valuable data source (in fact, it cost money to get it), so list out all details,
+  ensuring it's being utilized/considered to its fullest extent.
 
 ### Pipeline Integration Steps
 
@@ -337,15 +346,6 @@ non-parks — with results that feed back into the pipeline as a post-processing
 - [ ] Override application order: deletions → merges → field edits → verification stamps
 - [ ] Log override summary each run (e.g., "Applied 12 field edits, 3 merges, 5 deletions")
 - [ ] Overrides are idempotent — re-running pipeline with same overrides produces same output
-
-### Open Questions
-
-- Should the dedup review UI also suggest threshold/parameter adjustments for `deduplicate.py`?
-  (e.g., "These 15 pairs were manually merged — consider lowering the similarity threshold for this pattern")
-- Should verified parks be protected from future dedup merges? (i.e., if I verified park X, don't let
-  a future pipeline run merge it into something else without flagging it)
-- Should overrides survive source re-scrapes? (Yes — keyed by source+source_id, so they persist as long
-  as the source keeps producing that ID. If a source_id disappears, log a warning.)
 
 ---
 

@@ -182,6 +182,12 @@ def step_deduplicate(parks: list[dict]) -> list[dict]:
     return deduplicate(parks)
 
 
+def step_apply_overrides(parks: list[dict]) -> list[dict]:
+    """Apply manual overrides (deletions, merges, edits, verifications)."""
+    from processing.apply_overrides import apply_overrides
+    return apply_overrides(parks)
+
+
 def step_refresh_boundaries():
     """Re-fetch county boundaries and save to data/reference/."""
     from sources.county_boundaries import fetch, to_geojson
@@ -275,6 +281,9 @@ def run(source_names: list[str] | None = None,
 
     # 5. Deduplicate
     final_parks = step_deduplicate(all_parks)
+
+    # 6. Apply manual overrides
+    final_parks = step_apply_overrides(final_parks)
 
     if dry_run:
         logger.info("Dry run — skipping final save")
