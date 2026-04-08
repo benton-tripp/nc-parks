@@ -23,7 +23,7 @@ A community-driven web application helping parents find the perfect playground i
 
 ## Overview
 
-NC Parks is a purpose-built tool for parents in North Carolina who want to quickly find playgrounds that match their family's needs — public restrooms, fenced play areas, shade, swings, splash pads, and more. The app combines data from free public sources with community contributions to build the most comprehensive and up-to-date playground directory in the state.
+NC Parks is a purpose-built tool for parents in North Carolina who want to quickly find playgrounds that match their family's needs — public restrooms, fenced play areas, shade, swings, splash pads, and more. The app combines data from 22 public sources (4,798 parks) with a local admin review tool to build the most comprehensive playground directory in the state.
 
 ### Problem
 
@@ -31,7 +31,7 @@ Parents waste time driving to parks only to find they lack basic amenities (no r
 
 ### Solution
 
-A filterable, map-first experience with verified community data. Every park has structured amenity tags, ratings, verified visitor counts, and user-submitted photos — so parents know exactly what to expect before they go.
+A filterable, map-first experience with verified data. Every park has structured amenity tags, Google Places ratings when available, and admin-verified fields — so parents know exactly what to expect before they go.
 
 ---
 
@@ -39,40 +39,27 @@ A filterable, map-first experience with verified community data. Every park has 
 
 ### Map & Discovery
 
-- **Interactive map** powered by MapLibre GL JS with high-quality vector tiles
-- **Search by location** — address, city, county, or "near me" (geolocation)
+- **Interactive map** powered by MapLibre GL JS with vector tiles
+- **Search by name** with real-time filtering
 - **Filter by amenities** — restrooms, fenced playground, swings, slides, splash pad, shade structures, picnic tables, ADA accessible, parking, trails, etc.
-- **Filter by age range** — toddler-friendly, ages 2–5, ages 5–12
-- **Cluster view** at low zoom, individual pins with preview cards at higher zoom
+- **Cluster view** at low zoom, individual pins at higher zoom
+- **List/map toggle** on mobile — switch between map view and scrollable park list
+- **Selected park highlighting** — distinct marker color for the active park
 
 ### Park Profiles
 
-- Amenity checklist with community-verified statuses
-- Overall rating (1–5 stars) plus sub-ratings:
-  - Cleanliness
-  - Equipment condition
-  - Shade / comfort
-  - Safety / visibility
-  - Toddler-friendliness
-- **Verified visitor count** — "X visitors have verified this park"
-- User-submitted photos (moderated; no photos containing identifiable people/children)
-- Operating hours, address, and directions link
-- Last verified / last updated timestamp
+- Amenity checklist with structured boolean flags (35 amenities)
+- Google Places ratings (stars + review count + data date) when available
+- Links to Google Maps, Apple Maps, source website
+- All data sources listed per park
+- Address, city, county
 
-### Community Interaction
+### Community (Planned)
 
-- **Rate & review** — authenticated users can leave a rating + optional written review
-- **Verify a park** — "I was here" check-in (GPS-validated when possible) to confirm the park still exists and is open
-- **Submit amenity updates** — crowdsourced corrections ("restrooms are closed," "new swing set added")
-- **Submit a new park** — users suggest parks not yet in the database; submissions enter a moderation queue
-- **Photo uploads** — community photos with automated moderation (no identifiable people)
-- **Flag issues** — report vandalism, closures, safety hazards
-
-### Personalization (future)
-
-- Favorite / bookmark parks
-- "Visited" list
-- Notifications when a favorited park gets updated
+- Rate & review parks (requires backend auth — not yet implemented)
+- "I was here" check-in verification
+- Submit amenity updates and new parks
+- Photo uploads with moderation
 
 ---
 
@@ -90,18 +77,18 @@ A filterable, map-first experience with verified community data. Every park has 
 | **React Router** | Client-side routing |
 | **Tailwind CSS** | Utility-first styling for rapid UI development |
 
-### Backend (AWS — minimal cost)
+### Backend (Planned — AWS)
 
 | Service | Purpose |
 |---|---|
 | **API Gateway (HTTP API)** | REST endpoints; pay-per-request pricing |
-| **Lambda (Python)** | Business logic — park CRUD, ratings, moderation, user actions |
+| **Lambda (Python)** | Business logic — park CRUD, ratings, moderation |
 | **DynamoDB** | Primary datastore — on-demand capacity, zero idle cost |
-| **S3** | Photo storage, static site hosting, data pipeline artifacts |
+| **S3** | Photo storage, static site hosting |
 | **CloudFront** | CDN for static assets and map tiles |
-| **Cognito** | User authentication (email/social sign-in) |
-| **SES** | Transactional email (verification, notifications) |
-| **EventBridge** | Async events (new submission → moderation workflow) |
+| **Cognito** | User authentication |
+
+> **Note:** The backend is not yet implemented. The `backend/` directory contains skeleton structure only (`template.yaml` is empty). The app currently runs entirely from static JSON data produced by the pipeline.
 
 ### Map Tiles
 
@@ -117,18 +104,21 @@ A filterable, map-first experience with verified community data. Every park has 
 
 | Tool | Purpose |
 |---|---|
-| **Python scripts** | ETL — fetch, parse, normalize, deduplicate park data |
+| **Python scripts** | ETL — fetch, parse, normalize, geocode, enrich, validate, deduplicate, apply overrides |
 | **Overpass API** | Query OpenStreetMap for `leisure=playground`, `leisure=park` in NC |
-| **Open data portals** | City/county/state GIS datasets (Raleigh, Charlotte, NC OneMap, etc.) |
-| **Beautiful Soup / Scrapy** | Web scraping for supplemental sources (parks & rec department sites) |
-| **Shapely** | Spatial operations — point-in-polygon county assignment, deduplication by proximity |
-| **GitHub Actions** | Scheduled pipeline runs (weekly/monthly refresh) |
+| **Google Places API** | 2,751 parks with ratings, reviews, types (pre-fetched data, no live API calls in pipeline) |
+| **Open data portals** | City/county ArcGIS REST APIs (Wake County, Charlotte, etc.) |
+| **Beautiful Soup** | Web scraping for municipal parks & rec sites |
+| **Shapely** | Point-in-polygon county assignment, spatial deduplication |
+| **Nominatim** | Forward + reverse geocoding with persistent backoff |
 
-### Infrastructure as Code
+### Admin Review Tool
 
 | Tool | Purpose |
 |---|---|
-| **AWS SAM or CDK** | Define all AWS resources as code; reproducible deployments |
+| **Streamlit** | Local admin UI for park verification, editing, dedup review |
+| **Folium** | Interactive maps with satellite imagery in admin pages |
+| **streamlit-folium** | Streamlit integration for Folium maps |
 
 ---
 
@@ -182,129 +172,59 @@ The architecture is designed around **pay-per-use** services with generous free 
 
 ## Data Sources & Pipeline
 
-### Initial Data Sources (Free)
+### Current Data (4,798 parks from 22 sources)
 
-1. **OpenStreetMap via Overpass API**
-   - Query: `leisure=playground`, `leisure=park` within NC bounding box
-   - Extracts: name, coordinates, surface type, access, lit, fee tags
-   - Refresh: weekly
+| Source | Parks | Method |
+|---|---|---|
+| OSM (Statewide) | 2,673 | Overpass API + child POI amenity enrichment |
+| Google Places | 1,467 | Pre-fetched API data (ratings, reviews, types) |
+| Wake County | 279 | ArcGIS REST API (42 amenity flags) |
+| Charlotte | 68 | ArcGIS / open data portal |
+| Playground Explorers | 57 | RSC flight data parsing |
+| Mecklenburg County | 51 | ArcGIS REST API |
+| Greensboro | 36 | Web scraper (undetected-chromedriver) |
+| Wilmington | 34 | PDF parsing (pyMuPDF) |
+| Johnston County | 30 | Web scraper |
+| Southern Pines | 22 | CivicPlus scraper |
+| Lexington | 20 | Web scraper |
+| New Bern | 18 | Web scraper |
+| Elizabeth City | 10 | Web scraper |
+| High Point | 9 | Web scraper (CivicPlus) |
+| Nash County | 8 | CivicPlus scraper |
+| Alamance County | 6 | Web scraper |
+| Graham | 2 | Web scraper |
+| Manteo | 2 | Web scraper |
+| Goldsboro | 2 | Web scraper |
+| NC Triad Outdoors | 2 | Web scraper |
+| Kill Devil Hills | 1 | Static page scraper |
+| New Hanover County | 1 | PDF parsing |
 
-2. **NC OneMap / State GIS**
-   - Parks and recreation facility layers
-   - Municipal boundaries for county/city tagging
+### Pipeline Steps
 
-3. **City/County Open Data Portals**
-   - **Wake County ArcGIS** — 291 parks with 42 amenity flags ✅ *implemented*
-   - Charlotte Open Data — park facilities *(stub)*
-   - Durham, Greensboro, Winston-Salem, Fayetteville, etc. *(planned)*
-   - Mecklenburg County GIS *(planned)*
+1. **Fetch** — pull data from all registered sources (or load from cached raw files with `--skip-fetch`)
+2. **Normalize** — standardize to canonical schema (name, address, city, county, coords, amenities, source, source_id)
+3. **Geocode** — forward + reverse geocoding via Nominatim with persistent backoff
+4. **Enrich** — county assignment via point-in-polygon + nearest-county fallback for coastal parks
+5. **Validate URLs** — check source URLs for liveness
+6. **Deduplicate** — spatial proximity (haversine) + fuzzy name matching with facility-type guards
+7. **Apply Overrides** — apply manual deletions, merges, field edits, and verification stamps from `data/overrides/`
+8. **Save** — timestamped JSON + `parks_latest.json` + auto-copy to `frontend/public/data/`
 
 4. **Web Scraping (supplemental)**
-   - Municipal parks & recreation department websites
-   - Amenity details not available in structured data
-   - Respectful crawling with rate limits and robots.txt compliance
+   - Municipal parks & recreation department websites via Beautiful Soup
+   - Reusable CivicPlus scraper base class for CivicPlus-powered sites
+   - Rate-limited, respectful crawling with robots.txt compliance
 
-### Data Model (DynamoDB)
+### Override System
 
-**Parks Table**
+The admin tool writes manual corrections to `data/overrides/`:
 
-```
-PK: PARK#<uuid>
-SK: METADATA
+- **`deletions.json`** — park keys to exclude (non-parks, businesses, duplicates)
+- **`manual_merges.json`** — explicit merge instructions (keep park A, drop park B, with optional field overrides)
+- **`field_edits.json`** — per-park field corrections (name, address, coords, amenities, etc.)
+- **`verifications.json`** — per-park per-field verification status and timestamps
 
-Attributes:
-  name: string
-  slug: string
-  location: { lat, lng }
-  geohash: string              # for geo queries
-  county: string
-  city: string
-  address: string
-  source: string               # "osm", "raleigh_opendata", "user_submitted"
-  sourceId: string             # original ID from source
-  amenities: Map {
-    restrooms: boolean | null
-    fencedPlayground: boolean | null
-    swings: boolean | null
-    slides: boolean | null
-    splashPad: boolean | null
-    shadedAreas: boolean | null
-    picnicTables: boolean | null
-    pavilion: boolean | null
-    adaAccessible: boolean | null
-    parking: boolean | null
-    drinkingWater: boolean | null
-    trails: boolean | null
-    basketballCourt: boolean | null
-    tennisCourt: boolean | null
-    openField: boolean | null
-  }
-  ageRange: list<string>       # ["toddler", "2-5", "5-12"]
-  avgRating: number
-  ratingCount: number
-  verifiedVisitors: number
-  photoCount: number
-  status: string               # "active", "pending_review", "closed"
-  lastVerified: string         # ISO timestamp
-  createdAt: string
-  updatedAt: string
-```
-
-**Ratings Table**
-
-```
-PK: PARK#<uuid>
-SK: RATING#<userId>#<timestamp>
-
-Attributes:
-  overall: number (1-5)
-  cleanliness: number (1-5)
-  equipmentCondition: number (1-5)
-  shade: number (1-5)
-  safety: number (1-5)
-  toddlerFriendly: number (1-5)
-  review: string (optional, max 1000 chars)
-  visitDate: string
-```
-
-**Verifications Table**
-
-```
-PK: PARK#<uuid>
-SK: VERIFY#<userId>#<timestamp>
-
-Attributes:
-  lat: number                  # user's location at check-in
-  lng: number
-  amenityUpdates: Map          # optional corrections
-  status: string               # "confirmed", "reported_issue"
-  note: string
-```
-
-**User Submissions Table**
-
-```
-PK: SUBMISSION#<uuid>
-SK: METADATA
-
-Attributes:
-  type: string                 # "new_park", "amenity_update", "photo", "issue_report"
-  submittedBy: string          # userId
-  parkId: string               # null for new park submissions
-  data: Map                    # submission payload
-  status: string               # "pending", "approved", "rejected"
-  moderatedBy: string
-  createdAt: string
-```
-
-### Deduplication Strategy
-
-Parks appear in multiple sources. The pipeline deduplicates by:
-
-1. **Spatial proximity** — parks within ~50m of each other are candidates for merging
-2. **Name similarity** — fuzzy string matching (Levenshtein / Jaro-Winkler)
-3. **Manual review queue** — ambiguous matches flagged for manual resolution
-4. Merged records retain all source IDs for future refresh reconciliation
+Overrides are applied both in the pipeline (`apply_overrides.py`) and in the admin UI (`data_io.py load_parks()`) so changes are visible immediately.
 
 ---
 
@@ -313,79 +233,71 @@ Parks appear in multiple sources. The pipeline deduplicates by:
 ```
 nc-parks/
 ├── README.md
+├── TODO.md
+│
+├── admin/                       # Streamlit admin review tool
+│   ├── app.py                   # Entry point — sidebar nav, page routing
+│   ├── data_io.py               # Shared data loading (applies all overrides in-memory)
+│   └── views/
+│       ├── dashboard.py         # Verification progress, data quality stats
+│       ├── park_review.py       # Browse, verify, edit individual parks
+│       ├── dedup_review.py      # Duplicate detection + field-by-field merge builder
+│       └── deletions.py         # Manage parks marked for deletion
 │
 ├── frontend/                    # React SPA
 │   ├── public/
+│   │   └── data/
+│   │       └── parks_latest.json  # Auto-copied from pipeline output
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── map/             # MapLibre map, markers, clusters, popups
-│   │   │   ├── parks/           # Park cards, detail view, amenity badges
-│   │   │   ├── filters/         # Amenity filter panel, search bar
-│   │   │   ├── ratings/         # Star ratings, review form, sub-ratings
-│   │   │   ├── photos/          # Photo gallery, upload flow
-│   │   │   ├── submissions/     # New park form, amenity correction form
-│   │   │   ├── auth/            # Login, signup, profile
-│   │   │   └── layout/          # Header, footer, sidebar, nav
-│   │   ├── hooks/               # Custom hooks (useParks, useFilters, useGeolocation)
-│   │   ├── api/                 # API client functions
-│   │   ├── types/               # TypeScript interfaces
-│   │   ├── utils/               # Helpers (geo, formatting)
-│   │   ├── pages/               # Route-level components
-│   │   ├── App.tsx
+│   │   │   ├── map/             # ParkMap (MapLibre GL, clusters, markers)
+│   │   │   ├── parks/           # ParkCard, ParkDetail, ParkDetailContent, ParkListPanel
+│   │   │   ├── filters/         # FilterPanel (search + amenity toggles)
+│   │   │   ├── ratings/         # StarRating (Google Places ratings display)
+│   │   │   └── layout/          # Header (settings dropdown, Buy Me a Coffee)
+│   │   ├── hooks/               # useParks, useFilters, useMapProvider
+│   │   ├── api/                 # parks.ts (fetch + parse parks_latest.json)
+│   │   ├── types/               # park.ts (TypeScript interfaces)
+│   │   ├── pages/               # MapPage.tsx
+│   │   ├── App.tsx              # Router (single route → MapPage)
 │   │   └── main.tsx
 │   ├── index.html
 │   ├── tailwind.config.ts
-│   ├── tsconfig.json
 │   ├── vite.config.ts
 │   └── package.json
 │
-├── backend/                     # AWS Lambda functions
-│   ├── functions/
-│   │   ├── parks/               # GET /parks, GET /parks/:id
-│   │   ├── ratings/             # POST /parks/:id/ratings
-│   │   ├── verifications/       # POST /parks/:id/verify
-│   │   ├── submissions/         # POST /submissions
-│   │   ├── photos/              # POST /parks/:id/photos (presigned URL)
-│   │   ├── moderation/          # Admin review endpoints
-│   │   └── auth/                # Cognito triggers (post-confirmation, etc.)
-│   ├── shared/                  # Shared utilities, DB helpers
+├── backend/                     # AWS Lambda functions (planned — not yet implemented)
+│   ├── functions/               # Skeleton dirs: auth, moderation, parks, photos, ratings, etc.
+│   ├── shared/
 │   ├── requirements.txt
-│   └── template.yaml            # AWS SAM template
+│   └── template.yaml            # AWS SAM template (empty)
 │
-├── data/                        # Pipeline output (gitignored)
-│   ├── raw/                     # Cached API responses per source
-│   ├── processed/               # After normalize + enrich
+├── data/                        # Pipeline data (gitignored)
+│   ├── raw/                     # Timestamped snapshots per source
+│   ├── processed/               # Post-normalize, post-enrich
 │   ├── final/                   # Deduplicated output (parks_latest.json)
+│   ├── overrides/               # Manual corrections from admin tool
+│   │   ├── deletions.json
+│   │   ├── manual_merges.json
+│   │   ├── field_edits.json
+│   │   └── verifications.json
 │   └── reference/               # County boundaries GeoJSON
 │
-├── data-pipeline/               # ETL scripts
-│   ├── sources/
-│   │   ├── wake_county.py       # Wake County ArcGIS open data
-│   │   ├── county_boundaries.py # NC county boundary polygons
-│   │   ├── osm.py               # Overpass API queries (stub)
-│   │   ├── charlotte.py         # Charlotte open data (stub)
-│   │   ├── nc_onemap.py         # State GIS layers (stub)
-│   │   └── scraper.py           # Generic parks & rec scraper (stub)
-│   ├── processing/
-│   │   ├── normalize.py         # Standardize schemas
-│   │   ├── deduplicate.py       # Spatial + fuzzy dedup
-│   │   ├── geocode.py           # Reverse geocode for missing addresses
-│   │   └── enrich.py            # Point-in-polygon county assignment + geohash
-│   ├── load.py                  # Write to DynamoDB
-│   ├── pipeline.py              # Orchestrator
+├── data-pipeline/               # ETL pipeline
+│   ├── pipeline.py              # Orchestrator (27 registered sources)
+│   ├── load.py                  # DynamoDB loader (future use)
 │   ├── requirements.txt
+│   ├── sources/                 # 27+ source modules (wake_county.py, osm.py, google_places.py, ...)
+│   ├── processing/              # normalize, deduplicate, geocode, enrich, validate_urls, apply_overrides
+│   ├── utils/                   # cleanup, export_excel, warm_cache
 │   └── tests/
 │
-├── .github/
-│   └── workflows/
-│       ├── deploy-frontend.yml  # Build + deploy React to S3/CloudFront
-│       ├── deploy-backend.yml   # SAM build + deploy
-│       └── data-refresh.yml     # Scheduled pipeline run
-│
 └── docs/
-    ├── data-sources.md          # Detailed source documentation
-    ├── api.md                   # API endpoint reference
-    └── moderation.md            # Content moderation guidelines
+    ├── data-sources.md
+    ├── api.md
+    ├── counties.md
+    ├── source-analysis.md
+    └── moderation.md
 ```
 
 ---
@@ -396,8 +308,6 @@ nc-parks/
 
 - Node.js 20+
 - Python 3.12+
-- AWS CLI v2 (configured with credentials)
-- AWS SAM CLI
 - Git
 
 ### Frontend
@@ -409,23 +319,15 @@ npm run dev
 # Opens at http://localhost:5173
 ```
 
-Environment variables (`.env.local`):
-
-```
-VITE_API_URL=http://localhost:3000
-VITE_MAPTILER_KEY=your_key_here
-VITE_COGNITO_USER_POOL_ID=us-east-1_xxxxx
-VITE_COGNITO_CLIENT_ID=xxxxx
-```
-
-### Backend (local)
+### Admin Review Tool
 
 ```bash
-cd backend
-pip install -r requirements.txt
-sam local start-api
-# API available at http://localhost:3000
+pip install streamlit streamlit-folium folium
+streamlit run admin/app.py
+# Opens at http://localhost:8501
 ```
+
+The admin tool reads `data/final/parks_latest.json` and writes corrections to `data/overrides/`. All four pages (Dashboard, Park Review, Dedup Review, Deletions) apply pending overrides in-memory so changes are visible immediately without re-running the pipeline.
 
 ### Data Pipeline
 
@@ -480,80 +382,52 @@ This loads `parks_latest.json` as clustered markers and `nc_counties.geojson` as
 
 ## Infrastructure & Deployment
 
-### Initial Setup
+Not yet deployed. The app currently runs locally:
 
-1. **Domain** — Register or point a domain (e.g., `nc-parks.com`) to CloudFront
-2. **AWS account** — Create a dedicated AWS account or use an isolated profile
-3. **SAM deploy** — `cd backend && sam build && sam deploy --guided`
-4. **Frontend deploy** — Build and sync to S3: `npm run build && aws s3 sync dist/ s3://your-bucket`
-5. **CloudFront** — Invalidate cache on deploy
+- **Frontend:** `npm run dev` → localhost:5173
+- **Admin tool:** `streamlit run admin/app.py` → localhost:8501
+- **Pipeline:** `python data-pipeline/pipeline.py` → writes to `data/final/`
 
-### CI/CD
-
-GitHub Actions workflows handle:
-
-- **Frontend:** lint → test → build → deploy to S3 → CloudFront invalidation
-- **Backend:** lint → test → SAM build → SAM deploy
-- **Data pipeline:** scheduled weekly run (cron) + manual trigger
-
-### Cost Optimization Notes
-
-- DynamoDB on-demand mode — no cost when idle, scales automatically
-- Lambda — only runs when called; no idle servers
-- S3 + CloudFront — static hosting is pennies; CDN absorbs traffic spikes
-- Cognito — free up to 50K monthly active users
-- No RDS, no ECS, no EC2 — zero always-on compute
-- Consider S3 Intelligent-Tiering for photos if storage grows
+Future deployment plan: React SPA on S3/CloudFront, API Gateway + Lambda backend, DynamoDB datastore. See `backend/` for planned structure.
 
 ---
 
 ## Mobile Strategy
 
-The frontend is built with React specifically to enable a future mobile path:
-
-1. **Phase 1 (now):** Responsive React web app — works well on mobile browsers
-2. **Phase 2:** PWA enhancements — offline support, "Add to Home Screen," push notifications
-3. **Phase 3:** React Native app — share business logic, API layer, and TypeScript types; rebuild UI components with React Native equivalents
-
-The API-first backend design means the mobile app consumes the exact same endpoints as the web app — no backend changes needed.
+The frontend is built as a responsive React web app that works well on mobile browsers. A future React Native app could share TypeScript types and API layer with the web app.
 
 ---
 
 ## Roadmap
 
-### Phase 1 — MVP
+### Done
 
-- [ ] Data pipeline: OSM + city/county open data sources
-- [ ] Map view with park markers and clustering
-- [ ] Amenity filters (restrooms, fenced, swings, shade, etc.)
-- [ ] Basic park detail page with amenity checklist
-- [ ] User auth (Cognito)
-- [ ] Star ratings and sub-ratings
-- [ ] "I was here" verification
+- [x] Data pipeline: 22 active sources producing 4,798 parks
+- [x] Google Places integration (ratings, reviews, types)
+- [x] Map view with park markers, clustering, and list view
+- [x] Amenity filters + search
+- [x] Park detail panel with Google ratings
+- [x] Admin review tool: park verification, field editing, dedup merge builder, deletion management
+- [x] Override system integrated into pipeline
+- [x] SEO foundations + PWA manifest
+- [x] Buy Me a Coffee integration
 
-### Phase 2 — Community
+### Next
 
-- [ ] User reviews (text)
+- [ ] AWS backend (API Gateway + Lambda + DynamoDB + Cognito)
+- [ ] User auth and community ratings/reviews
 - [ ] Photo uploads with moderation
-- [ ] Submit new park flow
-- [ ] Amenity correction submissions
-- [ ] Moderation admin dashboard
-- [ ] Additional data sources (more cities/counties)
+- [ ] Submit new park / amenity corrections
+- [ ] PWA offline support (service worker via vite-plugin-pwa)
+- [ ] Admin bulk actions + audit log
+- [ ] Remaining 5 source scrapers (Henderson County, Durham, Fayetteville, Asheville, Wilson)
 
-### Phase 3 — Polish
+### Future
 
-- [ ] PWA (offline, installable)
+- [ ] React Native mobile app
 - [ ] Favorites and visited lists
-- [ ] "Parks near me" push notifications
-- [ ] Directions integration (Google Maps / Apple Maps deep links)
-- [ ] Social sharing (park cards)
-- [ ] SEO — server-side rendered park pages for search indexing
-
-### Phase 4 — Mobile App
-
-- [ ] React Native app (iOS + Android)
-- [ ] Native camera integration for photo uploads
-- [ ] Background location for check-in verification
+- [ ] Server-side rendering for SEO
+- [ ] Geolocation-based "near me" search
 
 ---
 

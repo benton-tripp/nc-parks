@@ -204,13 +204,9 @@
       **VERIFIED:** All 27 SOURCES entries have matching `_SOURCE_HANDLERS` entries. 1:1 match.
       One file exists but is intentionally unregistered: `nc_onemap.py` (not a data source yet).
     - [x] Have any not been run?
-          **YES — 18 of 27 sources have never been run** (no raw output in `data/raw/`).
-          Run: wake_county, johnston_county, osm, alamance_county, greensboro, high_point,
-          playground_explorers, triad, google_places (9 sources).
-          Never run: southern_pines, nash_county, kill_devil_hills, graham, manteo, elizabeth_city,
-          new_bern, wilson, fayetteville, goldsboro, henderson_county, durham, lexington, asheville,
-          charlotte, mecklenburg_county, wilmington, new_hanover_county (18 sources).
-          These are listed in "Data Pipeline — New Sources" above and many need scrapers built/tested.
+          **UPDATE:** 22 of 27 sources now produce parks in the final output (4,798 total parks).
+          Remaining 5 sources (henderson_county, durham_county, fayetteville, asheville, wilson)
+          have scrapers but produce 0 parks after dedup or haven't been run successfully.
 - [x] CHECK: Are there any missing coordinates/addresses?
       **4,542 total parks.** 1 park had 0,0 coords (Mitchell Street Park, greensboro — fixed: scraper
       now treats 0,0 as missing, normalize.py safety net added). 144 parks missing addresses (all OSM).
@@ -312,40 +308,37 @@ non-parks — with results that feed back into the pipeline as a post-processing
 - Dashboard: verification progress (% verified by county, by source), data quality stats.
 - Reads directly from `data/final/parks_latest.json` + `data/overrides/` files.
 
-### Admin UI Features (regardless of option chosen)
+### Admin UI Features
 
-- [ ] **Park review table**: sortable/filterable by county, source, verification status, data quality
-- [ ] **Field-level verification**: click through each park, mark fields as verified/corrected/flagged
-- [ ] **Inline editing**: edit name, address, coordinates, phone, amenities — writes to `field_edits.json`
-- [ ] **Map context**: show park on map with satellite toggle, nearby parks visible for dedup context
-    * E.g., An iframe with google maps??
-- [ ] **Quick links**: Google Maps, Apple Maps, Google satellite, source URL — one click each
-- [ ] **Dedup review queue**: pairs ranked by similarity score, side-by-side detail + map, merge/keep/delete
-- [ ] **Deletion queue**: flagged non-parks with one-click confirm
-- [ ] **Progress dashboard**: % verified by county/source, unreviewed count, data quality flags
-- [ ] **Coordinate correction**: click-on-map to update lat/lon (drag pin to correct location)
+- [x] **Park review table**: sortable/filterable by county, source, verification status, data quality
+- [x] **Field-level verification**: click through each park, mark fields as verified/corrected/flagged
+- [x] **Inline editing**: edit name, address, city, phone, URL, coordinates, amenities — writes to `field_edits.json`
+- [x] **Map context**: Folium map with satellite layer + nearby parks shown as circle markers
+- [x] **Quick links**: Google Maps, Apple Maps, Google satellite, source URL — one click each
+- [x] **Dedup review queue**: pairs ranked by similarity score, side-by-side detail + map, field-by-field
+      merge builder (pick A or B per field with smart defaults), merge/keep both/delete A/B/both
+- [x] **Deletion queue**: flagged non-parks with one-click confirm + restore (undelete)
+- [x] **Progress dashboard**: % verified by county/source, unreviewed count, data quality flags,
+      Google Places coverage stats
+- [x] **Coordinate correction**: click-on-map to set lat/lon (red pin placed, fields auto-populated)
+- [x] **Google Places highlighting**: park review and dedup pages prominently display Google rating,
+      review count, data date, and all Google extras for every park with Google data
+- [x] **Dedup threshold suggestions**: after 5+ merges, suggests threshold adjustments for `deduplicate.py`
+- [x] **Overrides survive re-scrapes**: keyed by `source::source_id`, persist across pipeline runs.
+      `load_parks()` in data_io.py applies all pending overrides (field edits, merges, deletions)
+      in-memory so every admin page sees the effective state immediately.
 - [ ] **Bulk actions**: verify all parks in a county, mark source as reviewed, etc.
 - [ ] **Audit log**: track what was changed, when, and why (stored in override files)
-- [ ] The dedup review UI should also suggest threshold/parameter adjustments for `deduplicate.py`
-      (e.g., "These 15 pairs were manually merged — consider lowering the similarity threshold for
-      this pattern")
-- [ ] Verified parks be protected from future dedup merges (i.e., if I verified park X, don't let
-  a future pipeline run merge it into something else without flagging it); This might be a later feature
-  once verifications are implemented, so maybe just keep a note/TODO open in the code.
-- [ ] Overrides should survive source re-scrapes (keyed by source+source_id, so they persist as long
-  as the source keeps producing that ID. If a source_id disappears, log a warning; there may need to be a
-  re-evaluation of the source script to ensure they are not completely unique each time it re-runs).
-- [ ] Make sure to highlight sources from Google Places API on/near the park(s) of interest; this is
-  possibly my most valuable data source (in fact, it cost money to get it), so list out all details,
-  ensuring it's being utilized/considered to its fullest extent.
+- [ ] **Verified park dedup protection**: verified parks should be protected from future dedup merges
+      (flag instead of auto-merging)
 
 ### Pipeline Integration Steps
 
-- [ ] Create `data/overrides/` directory structure with empty starter files
-- [ ] Add `apply_overrides()` step to `pipeline.py` (after dedup, before final write)
-- [ ] Override application order: deletions → merges → field edits → verification stamps
-- [ ] Log override summary each run (e.g., "Applied 12 field edits, 3 merges, 5 deletions")
-- [ ] Overrides are idempotent — re-running pipeline with same overrides produces same output
+- [x] Create `data/overrides/` directory structure with starter files
+- [x] Add `apply_overrides()` step to `pipeline.py` (after dedup, before final write)
+- [x] Override application order: deletions → merges → field edits → verification stamps
+- [x] Log override summary each run (e.g., "Applied 12 field edits, 3 merges, 5 deletions")
+- [x] Overrides are idempotent — re-running pipeline with same overrides produces same output
 
 ---
 
